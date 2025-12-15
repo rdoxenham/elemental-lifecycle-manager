@@ -31,8 +31,7 @@ type ReleaseSpec struct {
 
 // ReleaseStatus defines the observed state of Release
 type ReleaseStatus struct {
-	// INSERT ADDITIONAL STATUS FIELD - define observed state of cluster
-	// Important: Run "make" to regenerate code after modifying this file
+	Version string `json:"version"`
 }
 
 // +kubebuilder:object:root=true

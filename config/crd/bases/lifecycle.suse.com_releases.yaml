@@ -54,6 +54,11 @@ spec:
             type: object
           status:
             description: ReleaseStatus defines the observed state of Release
+            properties:
+              version:
+                type: string
+            required:
+            - version
             type: object
         type: object
     served: true
