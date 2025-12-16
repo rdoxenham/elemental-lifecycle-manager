@@ -31,7 +31,8 @@ type ReleaseSpec struct {
 
 // ReleaseStatus defines the observed state of Release
 type ReleaseStatus struct {
-	Version string `json:"version"`
+	Version    string             `json:"version"`
+	Conditions []metav1.Condition `json:"conditions,omitempty"`
 }
 
 // +kubebuilder:object:root=true
