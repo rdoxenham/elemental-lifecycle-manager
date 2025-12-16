@@ -18,6 +18,8 @@ package controller
 
 import (
 	"context"
+	"errors"
+	"fmt"
 
 	"k8s.io/apimachinery/pkg/runtime"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -25,12 +27,15 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/log"
 
 	lifecyclev1alpha1 "github.com/suse/elemental-lifecycle-manager/api/v1alpha1"
+	"github.com/suse/elemental/v3/pkg/manifest/resolver"
 )
 
 // ReleaseReconciler reconciles a Release object
 type ReleaseReconciler struct {
 	client.Client
 	Scheme *runtime.Scheme
+
+	RetrieveManifest func(ctx context.Context, registry, version string) (*resolver.ResolvedManifest, error)
 }
 
 // +kubebuilder:rbac:groups=lifecycle.suse.com,resources=releases,verbs=get;list;watch;create;update;patch;delete
@@ -41,18 +46,35 @@ type ReleaseReconciler struct {
 // move the current state of the cluster closer to the desired state.
 func (r *ReleaseReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	logger := log.FromContext(ctx)
+	logger.Info("Reconciling Release")
 
-	var release lifecyclev1alpha1.Release
+	release := &lifecyclev1alpha1.Release{}
 
-	if err := r.Get(ctx, req.NamespacedName, &release); err != nil {
+	if err := r.Get(ctx, req.NamespacedName, release); err != nil {
 		logger.Error(err, "unable to fetch Release")
 
 		return ctrl.Result{}, client.IgnoreNotFound(err)
 	}
 
+	result, err := r.reconcileNormal(ctx, release)
+
+	// Attempt to update the release status before returning.
+	return result, errors.Join(err, r.Status().Update(ctx, release))
+}
+
+func (r *ReleaseReconciler) reconcileNormal(ctx context.Context, release *lifecyclev1alpha1.Release) (ctrl.Result, error) {
+	logger := log.FromContext(ctx)
 	logger.Info("Upgrade to the platform requested",
 		"version", release.Spec.Version,
 		"registry", release.Spec.Registry)
+
+	manifest, err := r.RetrieveManifest(ctx, release.Spec.Registry, release.Spec.Version)
+	if err != nil {
+		return ctrl.Result{}, fmt.Errorf("retrieving release manifest: %w", err)
+	}
+
+	logger.Info("Successfully retrieved release manifest",
+		"manifest", manifest)
 
 	return ctrl.Result{}, nil
 }

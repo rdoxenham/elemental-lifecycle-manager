@@ -21,6 +21,7 @@ import (
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
+
 	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
@@ -28,6 +29,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	lifecyclev1alpha1 "github.com/suse/elemental-lifecycle-manager/api/v1alpha1"
+	"github.com/suse/elemental/v3/pkg/manifest/resolver"
 )
 
 var _ = Describe("Release Controller", func() {
@@ -71,6 +73,9 @@ var _ = Describe("Release Controller", func() {
 			controllerReconciler := &ReleaseReconciler{
 				Client: k8sClient,
 				Scheme: k8sClient.Scheme(),
+				RetrieveManifest: func(ctx context.Context, registry, version string) (*resolver.ResolvedManifest, error) {
+					return &resolver.ResolvedManifest{}, nil
+				},
 			}
 
 			_, err := controllerReconciler.Reconcile(ctx, reconcile.Request{
