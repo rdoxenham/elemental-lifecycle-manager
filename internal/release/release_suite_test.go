@@ -7,7 +7,7 @@ import (
 	. "github.com/onsi/gomega"
 )
 
-func TestActionSuite(t *testing.T) {
+func TestReleaseSuite(t *testing.T) {
 	RegisterFailHandler(Fail)
-	RunSpecs(t, "Action test suite")
+	RunSpecs(t, "Release test suite")
 }
