@@ -21,12 +21,11 @@ import (
 	"errors"
 	"fmt"
 
+	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/log"
-
-	corev1 "k8s.io/api/core/v1"
 
 	lifecyclev1alpha1 "github.com/suse/elemental-lifecycle-manager/api/v1alpha1"
 	"github.com/suse/elemental/v3/pkg/manifest/resolver"
@@ -44,6 +43,7 @@ type ReleaseReconciler struct {
 // +kubebuilder:rbac:groups=lifecycle.suse.com,resources=releases/status,verbs=get;update;patch
 // +kubebuilder:rbac:groups=lifecycle.suse.com,resources=releases/finalizers,verbs=update
 // +kubebuilder:rbac:groups="",resources=nodes,verbs=watch;list
+// +kubebuilder:rbac:groups="",resources=configmaps,verbs=get;list;watch;create;update;patch
 
 // Reconcile is part of the main kubernetes reconciliation loop which aims to
 // move the current state of the cluster closer to the desired state.
@@ -71,7 +71,7 @@ func (r *ReleaseReconciler) reconcileNormal(ctx context.Context, release *lifecy
 		"version", release.Spec.Version,
 		"registry", release.Spec.Registry)
 
-	manifest, err := r.RetrieveManifest(ctx, release.Spec.Registry, release.Spec.Version)
+	manifest, err := r.getOrRetrieveManifest(ctx, release)
 	if err != nil {
 		return ctrl.Result{}, fmt.Errorf("retrieving release manifest: %w", err)
 	}
