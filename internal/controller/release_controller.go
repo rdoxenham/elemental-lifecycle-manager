@@ -28,6 +28,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/log"
 
 	lifecyclev1alpha1 "github.com/suse/elemental-lifecycle-manager/api/v1alpha1"
+	"github.com/suse/elemental-lifecycle-manager/internal/upgrade"
 	"github.com/suse/elemental/v3/pkg/manifest/resolver"
 )
 
@@ -37,6 +38,7 @@ type ReleaseReconciler struct {
 	Scheme *runtime.Scheme
 
 	RetrieveManifest func(ctx context.Context, registry, version string) (*resolver.ResolvedManifest, error)
+	Orchestrator     *upgrade.Orchestrator
 }
 
 // +kubebuilder:rbac:groups=lifecycle.suse.com,resources=releases,verbs=get;list;watch;create;update;patch;delete
@@ -82,6 +84,17 @@ func (r *ReleaseReconciler) reconcileNormal(ctx context.Context, release *lifecy
 	nodeList := &corev1.NodeList{}
 	if err := r.List(ctx, nodeList); err != nil {
 		return ctrl.Result{}, fmt.Errorf("listing nodes: %w", err)
+	}
+
+	config, err := r.Orchestrator.BuildConfig(manifest)
+	if err != nil {
+		return ctrl.Result{}, fmt.Errorf("building upgrade config: %w", err)
+	}
+
+	logger.Info("Reconciling upgrade", "version", config.Version)
+
+	if err := r.Orchestrator.Reconcile(ctx, config); err != nil {
+		return ctrl.Result{}, fmt.Errorf("reconciling upgrade: %w", err)
 	}
 
 	return ctrl.Result{}, nil
