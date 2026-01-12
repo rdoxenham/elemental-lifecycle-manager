@@ -20,6 +20,32 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
+// Condition types for Release status.
+const (
+	// ConditionApplied indicates whether the release has been applied successfully.
+	// True when all upgrade phase conditions (OS, Kubernetes, HelmCharts) are True.
+	ConditionApplied = "Applied"
+	// ConditionManifestResolved indicates whether the release manifest was successfully retrieved.
+	ConditionManifestResolved = "ManifestResolved"
+	// ConditionOSUpgraded indicates the status of the OS upgrade.
+	// Pending -> InProgress -> Succeeded/Failed
+	ConditionOSUpgraded = "OSUpgraded"
+	// ConditionKubernetesUpgraded indicates the status of the Kubernetes upgrade.
+	// Pending -> InProgress -> Succeeded/Failed
+	ConditionKubernetesUpgraded = "KubernetesUpgraded"
+	// ConditionHelmChartsUpgraded indicates the status of Helm chart upgrade.
+	// Pending -> InProgress -> Succeeded/Failed
+	ConditionHelmChartsUpgraded = "HelmChartsUpgraded"
+)
+
+// Condition reasons for Release status.
+const (
+	ReasonPending    = "Pending"
+	ReasonInProgress = "InProgress"
+	ReasonSucceeded  = "Succeeded"
+	ReasonFailed     = "Failed"
+)
+
 // ReleaseSpec defines the desired state of Release
 type ReleaseSpec struct {
 	// Version specifies the target version for platform upgrade.
@@ -31,7 +57,9 @@ type ReleaseSpec struct {
 
 // ReleaseStatus defines the observed state of Release
 type ReleaseStatus struct {
-	Version    string             `json:"version"`
+	// Version is the currently applied release version.
+	Version string `json:"version"`
+	// Conditions represent the current state of the release upgrade.
 	Conditions []metav1.Condition `json:"conditions,omitempty"`
 }
 
