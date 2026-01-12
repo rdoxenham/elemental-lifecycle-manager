@@ -17,6 +17,8 @@ limitations under the License.
 package plan
 
 import (
+	"strings"
+
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/intstr"
 
@@ -25,7 +27,19 @@ import (
 
 const (
 	SUCNamespace = "cattle-system"
+
+	controlPlaneLabel   = "node-role.kubernetes.io/control-plane"
+	ReleaseNameLabel    = "lifecycle.suse.com/release"
+	ReleaseVersionLabel = "lifecycle.suse.com/version"
+
+	upgradeImage = "registry.suse.com/bci/bci-base:16.0"
 )
+
+// SanitizeVersion converts a version string to a valid Kubernetes name suffix.
+// Replaces dots with dashes (e.g., "1.2.3" -> "1-2-3").
+func SanitizeVersion(version string) string {
+	return strings.ReplaceAll(version, ".", "-")
+}
 
 func basePlan(name string, drain bool) *upgradecattlev1.Plan {
 	const (
