@@ -20,6 +20,8 @@ import (
 	"context"
 	"fmt"
 
+	apimeta "k8s.io/apimachinery/pkg/api/meta"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/util/version"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -76,6 +78,10 @@ func (r *ReleaseValidator) ValidateUpdate(_ context.Context, old, new runtime.Ob
 		return nil, fmt.Errorf("release registry is required")
 	}
 
+	if err = validateNoUpgradeInProgress(oldRelease); err != nil {
+		return nil, err
+	}
+
 	if oldRelease.Status.Version != "" {
 		indicator, err := newReleaseVersion.Compare(oldRelease.Status.Version)
 		if err != nil {
@@ -91,6 +97,26 @@ func (r *ReleaseValidator) ValidateUpdate(_ context.Context, old, new runtime.Ob
 	}
 
 	return nil, nil
+}
+
+// validateNoUpgradeInProgress checks if an upgrade is currently in progress.
+// Returns an error if the Applied condition is not True (upgrade in progress or failed).
+func validateNoUpgradeInProgress(release *Release) error {
+	appliedCond := apimeta.FindStatusCondition(release.Status.Conditions, ConditionApplied)
+
+	switch {
+	case appliedCond == nil:
+		// No Applied condition means upgrade hasn't started yet, allow edits
+		return nil
+	case appliedCond.Status == metav1.ConditionTrue:
+		// Previous upgrade completed successfully, allow edits
+		return nil
+	case appliedCond.Reason == ReasonFailed:
+		// Previous upgrade completed but failed, allow edits
+		return nil
+	}
+
+	return fmt.Errorf("cannot edit while upgrade is in '%s' state", appliedCond.Reason)
 }
 
 func validateReleaseVersion(releaseVersion string) (*version.Version, error) {

@@ -20,6 +20,7 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
+	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
@@ -117,6 +118,37 @@ var _ = Describe("Release Webhook", func() {
 			err := k8sClient.Update(ctx, release)
 			Expect(err).To(HaveOccurred())
 			Expect(err).To(MatchError(ContainSubstring("release version is required")))
+		})
+
+		It("Should be denied when an upgrade is pending", func() {
+			condition := metav1.Condition{Type: ConditionApplied, Status: metav1.ConditionFalse, Reason: ReasonPending}
+
+			meta.SetStatusCondition(&release.Status.Conditions, condition)
+			Expect(k8sClient.Status().Update(ctx, release)).To(Succeed())
+
+			err := k8sClient.Update(ctx, release)
+			Expect(err).To(HaveOccurred())
+			Expect(err).To(MatchError(ContainSubstring("cannot edit while upgrade is in 'Pending' state")))
+		})
+
+		It("Should be denied when an upgrade is in progress", func() {
+			condition := metav1.Condition{Type: ConditionApplied, Status: metav1.ConditionFalse, Reason: ReasonInProgress}
+
+			meta.SetStatusCondition(&release.Status.Conditions, condition)
+			Expect(k8sClient.Status().Update(ctx, release)).To(Succeed())
+
+			err := k8sClient.Update(ctx, release)
+			Expect(err).To(HaveOccurred())
+			Expect(err).To(MatchError(ContainSubstring("cannot edit while upgrade is in 'InProgress' state")))
+		})
+
+		It("Should pass if the last update has failed, but finished", func() {
+			condition := metav1.Condition{Type: ConditionApplied, Status: metav1.ConditionFalse, Reason: ReasonFailed}
+
+			meta.SetStatusCondition(&release.Status.Conditions, condition)
+			Expect(k8sClient.Status().Update(ctx, release)).To(Succeed())
+
+			Expect(k8sClient.Update(ctx, release)).To(Succeed())
 		})
 
 		It("Should be denied if release version is not in semantic format", func() {
