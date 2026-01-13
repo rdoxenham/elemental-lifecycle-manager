@@ -111,10 +111,10 @@ func (r *Result) AllComplete() bool {
 	return true
 }
 
-// SUCPlanReconciler defines the interface for reconciling a Rancher System Upgrade Controller Plan.
+// SUCPlanReconciler defines the interface for reconciling Rancher System Upgrade Controller Plans.
 type SUCPlanReconciler interface {
-	// ReconcilePlan ensures the SUC Plan exists and is up to date.
-	ReconcilePlan(ctx context.Context, config *SUCPlanConfig) error
+	// ReconcilePlans ensures the SUC Plans for a particular configuration exist and returns their current status.
+	ReconcilePlans(ctx context.Context, releaseName string, config *SUCPlanConfig) (*PhaseStatus, error)
 }
 
 // HelmChartReconciler defines the interface for reconciling Helm Controller HelmChart resources.

@@ -23,6 +23,8 @@ import (
 
 	"github.com/suse/elemental/v3/pkg/manifest/api"
 	"github.com/suse/elemental/v3/pkg/manifest/resolver"
+
+	lifecyclev1alpha1 "github.com/suse/elemental-lifecycle-manager/api/v1alpha1"
 )
 
 // Orchestrator coordinates the upgrade process across all phases.
@@ -46,7 +48,7 @@ func NewOrchestrator(osPlanReconciler, kubernetesPlanReconciler SUCPlanReconcile
 // BuildConfig creates a release upgrade specification from the resolved manifest.
 // The upgrade is built by extracting configuration from the core platform
 // and optionally merging with product extension components.
-func (o *Orchestrator) BuildConfig(manifest *resolver.ResolvedManifest) (*Config, error) {
+func (o *Orchestrator) BuildConfig(manifest *resolver.ResolvedManifest, releaseName string) (*Config, error) {
 	if manifest == nil {
 		return nil, fmt.Errorf("manifest is nil")
 	}
@@ -57,7 +59,8 @@ func (o *Orchestrator) BuildConfig(manifest *resolver.ResolvedManifest) (*Config
 
 	core := manifest.CorePlatform
 	config := &Config{
-		Version: core.Metadata.Version,
+		ReleaseName: releaseName,
+		Version:     core.Metadata.Version,
 		OS: &SUCPlanConfig{
 			Image:   core.Components.OperatingSystem.Image.Base,
 			Version: core.Metadata.Version,
@@ -110,34 +113,45 @@ func (o *Orchestrator) buildHelmChartConfig(core *api.Helm, product *api.Helm) *
 	return config
 }
 
-// Reconcile ensures all upgrade resources are in the desired state.
+// Reconcile ensures all upgrade resources are in the desired state and returns their status.
 // It reconciles resources in order:
 // 1. OS upgrade SUC Plan
 // 2. Kubernetes upgrade SUC Plan
 // 3. Helm charts via Helm Controller
 //
-// Each phase checks if resources exist and creates/updates them as needed.
-// The reconciliation stops at the first phase that fails.
-func (o *Orchestrator) Reconcile(ctx context.Context, config *Config) error {
+// Each phase checks if resources exist and creates them as needed.
+// Returns a Result containing the status of each phase.
+// On failure, returns a PhaseError with details about the failed phase.
+func (o *Orchestrator) Reconcile(ctx context.Context, config *Config) (*Result, error) {
+	result := &Result{
+		PhaseStates: make(map[Phase]*PhaseStatus),
+	}
+
 	if config == nil {
-		return fmt.Errorf("upgrade config is nil")
+		return result, fmt.Errorf("upgrade config is nil")
 	}
 
-	if err := o.osPlanReconciler.ReconcilePlan(ctx, config.OS); err != nil {
-		return fmt.Errorf("reconciling OS upgrade SUC Plan: %w", err)
+	osState, err := o.osPlanReconciler.ReconcilePlans(ctx, config.ReleaseName, config.OS)
+	if err != nil {
+		return result, &PhaseError{Phase: PhaseOS, Err: err}
 	}
+	result.PhaseStates[PhaseOS] = osState
 
-	if err := o.kubernetesPlanReconciler.ReconcilePlan(ctx, config.Kubernetes); err != nil {
-		return fmt.Errorf("reconciling Kubernetes upgrade SUC Plan: %w", err)
+	k8sState, err := o.kubernetesPlanReconciler.ReconcilePlans(ctx, config.ReleaseName, config.Kubernetes)
+	if err != nil {
+		return result, &PhaseError{Phase: PhaseKubernetes, Err: err}
 	}
+	result.PhaseStates[PhaseKubernetes] = k8sState
 
 	if config.HelmCharts != nil {
 		if err := o.helmChartReconciler.ReconcileHelmCharts(ctx, config.HelmCharts); err != nil {
-			return fmt.Errorf("reconciling Helm charts: %w", err)
+			return result, &PhaseError{Phase: PhaseHelmCharts, Err: err}
 		}
+		// TODO: HelmChartReconciler should return PhaseStatus
+		result.PhaseStates[PhaseHelmCharts] = &PhaseStatus{State: lifecyclev1alpha1.UpgradeSucceeded, Message: "Helm charts reconciled"}
 	}
 
-	return nil
+	return result, nil
 }
 
 func extractKubernetesImage(systemd *api.Systemd) (image string, version string) {

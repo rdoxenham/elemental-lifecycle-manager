@@ -20,8 +20,9 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"time"
 
-	corev1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -31,6 +32,8 @@ import (
 	"github.com/suse/elemental-lifecycle-manager/internal/upgrade"
 	"github.com/suse/elemental/v3/pkg/manifest/resolver"
 )
+
+const requeueInterval = 30 * time.Second
 
 // ReleaseReconciler reconciles a Release object
 type ReleaseReconciler struct {
@@ -46,6 +49,7 @@ type ReleaseReconciler struct {
 // +kubebuilder:rbac:groups=lifecycle.suse.com,resources=releases/finalizers,verbs=update
 // +kubebuilder:rbac:groups="",resources=nodes,verbs=watch;list
 // +kubebuilder:rbac:groups="",resources=configmaps,verbs=get;list;watch;create;update;patch
+// +kubebuilder:rbac:groups=upgrade.cattle.io,resources=plans,verbs=get;list;watch;create;update;patch;delete
 
 // Reconcile is part of the main kubernetes reconciliation loop which aims to
 // move the current state of the cluster closer to the desired state.
@@ -73,31 +77,39 @@ func (r *ReleaseReconciler) reconcileNormal(ctx context.Context, release *lifecy
 		"version", release.Spec.Version,
 		"registry", release.Spec.Registry)
 
+	initializePendingConditions(release)
+	defer updateAppliedCondition(release)
+
 	manifest, err := r.getOrRetrieveManifest(ctx, release)
 	if err != nil {
+		setCondition(release, lifecyclev1alpha1.ConditionManifestResolved, metav1.ConditionFalse,
+			lifecyclev1alpha1.UpgradeFailed, fmt.Sprintf("Failed to retrieve release manifest: %v", err))
 		return ctrl.Result{}, fmt.Errorf("retrieving release manifest: %w", err)
 	}
+	setCondition(release, lifecyclev1alpha1.ConditionManifestResolved, metav1.ConditionTrue,
+		lifecyclev1alpha1.UpgradeSucceeded, "Release manifest retrieved successfully")
 
-	logger.Info("Successfully retrieved release manifest",
-		"manifest", manifest)
-
-	nodeList := &corev1.NodeList{}
-	if err := r.List(ctx, nodeList); err != nil {
-		return ctrl.Result{}, fmt.Errorf("listing nodes: %w", err)
-	}
-
-	config, err := r.Orchestrator.BuildConfig(manifest)
+	config, err := r.Orchestrator.BuildConfig(manifest, release.Name)
 	if err != nil {
 		return ctrl.Result{}, fmt.Errorf("building upgrade config: %w", err)
 	}
 
 	logger.Info("Reconciling upgrade", "version", config.Version)
 
-	if err := r.Orchestrator.Reconcile(ctx, config); err != nil {
+	result, err := r.Orchestrator.Reconcile(ctx, config)
+	if err != nil {
+		setPhaseConditionFromError(release, err)
 		return ctrl.Result{}, fmt.Errorf("reconciling upgrade: %w", err)
 	}
 
-	return ctrl.Result{}, nil
+	updatePhaseConditions(release, result)
+
+	if result.AllComplete() {
+		release.Status.Version = config.Version
+		return ctrl.Result{}, nil
+	}
+
+	return ctrl.Result{RequeueAfter: requeueInterval}, nil
 }
 
 // SetupWithManager sets up the controller with the Manager.
