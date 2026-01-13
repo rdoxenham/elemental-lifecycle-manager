@@ -39,6 +39,7 @@ import (
 	lifecyclev1alpha1 "github.com/suse/elemental-lifecycle-manager/api/v1alpha1"
 	"github.com/suse/elemental-lifecycle-manager/internal/controller"
 	"github.com/suse/elemental-lifecycle-manager/internal/release"
+	"github.com/suse/elemental-lifecycle-manager/internal/upgrade"
 	// +kubebuilder:scaffold:imports
 )
 
@@ -127,10 +128,16 @@ func main() {
 		os.Exit(1)
 	}
 
+	client := mgr.GetClient()
+
 	if err = (&controller.ReleaseReconciler{
-		Client:           mgr.GetClient(),
+		Client:           client,
 		Scheme:           mgr.GetScheme(),
 		RetrieveManifest: release.RetrieveManifest,
+		Orchestrator: upgrade.NewOrchestrator(
+			upgrade.NewOSReconciler(client),
+			upgrade.NewKubernetesReconciler(client),
+			nil),
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "Release")
 		os.Exit(1)
