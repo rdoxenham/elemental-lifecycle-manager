@@ -40,10 +40,17 @@ const (
 
 // Condition reasons for Release status.
 const (
-	ReasonPending    = "Pending"
-	ReasonInProgress = "InProgress"
-	ReasonSucceeded  = "Succeeded"
-	ReasonFailed     = "Failed"
+	// UpgradePending indicates that the upgrade process has not begun.
+	UpgradePending = "Pending"
+
+	// UpgradeInProgress indicates that the upgrade process has started.
+	UpgradeInProgress = "InProgress"
+
+	// UpgradeSucceeded indicates that the upgrade process has been successful.
+	UpgradeSucceeded = "Succeeded"
+
+	// UpgradeFailed indicates that the upgrade process has failed.
+	UpgradeFailed = "Failed"
 )
 
 // ReleaseSpec defines the desired state of Release

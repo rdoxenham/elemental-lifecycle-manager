@@ -121,7 +121,7 @@ var _ = Describe("Release Webhook", func() {
 		})
 
 		It("Should be denied when an upgrade is pending", func() {
-			condition := metav1.Condition{Type: ConditionApplied, Status: metav1.ConditionFalse, Reason: ReasonPending}
+			condition := metav1.Condition{Type: ConditionApplied, Status: metav1.ConditionFalse, Reason: UpgradePending}
 
 			meta.SetStatusCondition(&release.Status.Conditions, condition)
 			Expect(k8sClient.Status().Update(ctx, release)).To(Succeed())
@@ -132,7 +132,7 @@ var _ = Describe("Release Webhook", func() {
 		})
 
 		It("Should be denied when an upgrade is in progress", func() {
-			condition := metav1.Condition{Type: ConditionApplied, Status: metav1.ConditionFalse, Reason: ReasonInProgress}
+			condition := metav1.Condition{Type: ConditionApplied, Status: metav1.ConditionFalse, Reason: UpgradeInProgress}
 
 			meta.SetStatusCondition(&release.Status.Conditions, condition)
 			Expect(k8sClient.Status().Update(ctx, release)).To(Succeed())
@@ -143,7 +143,7 @@ var _ = Describe("Release Webhook", func() {
 		})
 
 		It("Should pass if the last update has failed, but finished", func() {
-			condition := metav1.Condition{Type: ConditionApplied, Status: metav1.ConditionFalse, Reason: ReasonFailed}
+			condition := metav1.Condition{Type: ConditionApplied, Status: metav1.ConditionFalse, Reason: UpgradeFailed}
 
 			meta.SetStatusCondition(&release.Status.Conditions, condition)
 			Expect(k8sClient.Status().Update(ctx, release)).To(Succeed())

@@ -111,7 +111,7 @@ func validateNoUpgradeInProgress(release *Release) error {
 	case appliedCond.Status == metav1.ConditionTrue:
 		// Previous upgrade completed successfully, allow edits
 		return nil
-	case appliedCond.Reason == ReasonFailed:
+	case appliedCond.Reason == UpgradeFailed:
 		// Previous upgrade completed but failed, allow edits
 		return nil
 	}
