@@ -18,28 +18,52 @@ package upgrade
 
 import (
 	"context"
+	"fmt"
+	"strings"
 
 	"github.com/suse/elemental/v3/pkg/manifest/api"
+
+	lifecyclev1alpha1 "github.com/suse/elemental-lifecycle-manager/api/v1alpha1"
 )
 
-// Phase represents a distinct phase in the upgrade process.
+// Phase represents a distinct upgrade phase.
 type Phase string
 
-const (
-	PhaseOS         Phase = "OperatingSystem"
-	PhaseKubernetes Phase = "Kubernetes"
-	PhaseHelm       Phase = "Helm"
+// Phase constants derived from condition types.
+var (
+	PhaseOS         = Phase(strings.TrimSuffix(lifecyclev1alpha1.ConditionOSUpgraded, "Upgraded"))
+	PhaseKubernetes = Phase(strings.TrimSuffix(lifecyclev1alpha1.ConditionKubernetesUpgraded, "Upgraded"))
+	PhaseHelmCharts = Phase(strings.TrimSuffix(lifecyclev1alpha1.ConditionHelmChartsUpgraded, "Upgraded"))
 )
 
-// Status represents the current status of an upgrade phase.
-type Status string
+// AllPhases lists all upgrade phases in order.
+var AllPhases = []Phase{
+	PhaseOS,
+	PhaseKubernetes,
+	PhaseHelmCharts,
+}
 
-const (
-	StatusPending    Status = "Pending"
-	StatusInProgress Status = "InProgress"
-	StatusCompleted  Status = "Completed"
-	StatusFailed     Status = "Failed"
-)
+// ConditionType returns the condition type string for this phase.
+func (p Phase) ConditionType() string {
+	return string(p) + "Upgraded"
+}
+
+// PhaseStatus contains the status and details for an upgrade phase.
+type PhaseStatus struct {
+	State   string
+	Message string
+}
+
+// PhaseError represents an error that occurred during a specific upgrade phase.
+// The underlying Err should contain context-specific details from the reconciler.
+type PhaseError struct {
+	Phase Phase
+	Err   error
+}
+
+func (e *PhaseError) Error() string {
+	return fmt.Sprintf("%s upgrade failed: %v", e.Phase, e.Err)
+}
 
 // SUCPlanConfig contains configuration for creating a Rancher System Upgrade Controller Plan.
 type SUCPlanConfig struct {
@@ -59,6 +83,8 @@ type HelmChartConfig struct {
 
 // Config represents a complete upgrade specification for all phases.
 type Config struct {
+	// ReleaseName is the name of the Release resource.
+	ReleaseName string
 	// Version is the target release version.
 	Version string
 	// OS contains the SUC Plan configuration for OS upgrades.
@@ -67,6 +93,22 @@ type Config struct {
 	Kubernetes *SUCPlanConfig
 	// HelmCharts contains the Helm charts to deploy via Helm Controller.
 	HelmCharts *HelmChartConfig
+}
+
+// Result contains the outcome of the upgrade reconciliation.
+type Result struct {
+	// PhaseStates maps each phase to its current state.
+	PhaseStates map[Phase]*PhaseStatus
+}
+
+// AllComplete returns true if all phases have succeeded.
+func (r *Result) AllComplete() bool {
+	for _, state := range r.PhaseStates {
+		if state.State != lifecyclev1alpha1.UpgradeSucceeded {
+			return false
+		}
+	}
+	return true
 }
 
 // SUCPlanReconciler defines the interface for reconciling a Rancher System Upgrade Controller Plan.
