@@ -24,24 +24,23 @@ import (
 )
 
 const (
-	osControlPlaneBaseName = "elemental-os-control-plane"
-	osWorkerBaseName       = "elemental-os-worker"
+	kubernetesControlPlaneBaseName = "elemental-kubernetes-control-plane"
+	kubernetesWorkerBaseName       = "elemental-kubernetes-worker"
 )
 
-// osControlPlaneName returns the full plan name for the given version.
-func osControlPlaneName(version string) string {
-	return fmt.Sprintf("%s-%s", osControlPlaneBaseName, SanitizeVersion(version))
+// kubernetesControlPlaneName returns the full plan name for the given version.
+func kubernetesControlPlaneName(version string) string {
+	return fmt.Sprintf("%s-%s", kubernetesControlPlaneBaseName, SanitizeVersion(version))
 }
 
-// osWorkerName returns the full plan name for the given version.
-func osWorkerName(version string) string {
-	return fmt.Sprintf("%s-%s", osWorkerBaseName, SanitizeVersion(version))
+// kubernetesWorkerName returns the full plan name for the given version.
+func kubernetesWorkerName(version string) string {
+	return fmt.Sprintf("%s-%s", kubernetesWorkerBaseName, SanitizeVersion(version))
 }
 
-// OSControlPlane builds a SUC Plan for OS upgrades on control plane nodes.
-// Control plane nodes are upgraded first, without waiting for workers.
-func OSControlPlane(releaseName, osImage, version string) *upgradecattlev1.Plan {
-	p := basePlan(osControlPlaneName(version), true)
+// KubernetesControlPlane builds a SUC Plan for Kubernetes upgrades on control plane nodes.
+func KubernetesControlPlane(releaseName, k8sImage, version string) *upgradecattlev1.Plan {
+	p := basePlan(kubernetesControlPlaneName(version), true)
 	p.Labels = map[string]string{
 		ReleaseNameLabel:    releaseName,
 		ReleaseVersionLabel: SanitizeVersion(version),
@@ -53,24 +52,22 @@ func OSControlPlane(releaseName, osImage, version string) *upgradecattlev1.Plan 
 			{
 				Key:      controlPlaneLabel,
 				Operator: "In",
-				Values: []string{
-					"true",
-				},
+				Values:   []string{"true"},
 			},
 		},
 	}
 	p.Spec.Upgrade = &upgradecattlev1.ContainerSpec{
-		Image:   upgradeImage,
-		Command: []string{"elemental3ctl"},
-		Args:    []string{"upgrade", "--os-image", osImage},
+		Image: upgradeImage,
+		// TODO: Fill in upgrade execution
+		Command: []string{""},
+		Args:    []string{""},
 	}
 	return p
 }
 
-// OSWorker builds a SUC Plan for OS upgrades on worker nodes.
-// Worker nodes wait for control plane upgrades to complete before starting.
-func OSWorker(releaseName, osImage, version string) *upgradecattlev1.Plan {
-	p := basePlan(osWorkerName(version), true)
+// KubernetesWorker builds a SUC Plan for Kubernetes upgrades on worker nodes.
+func KubernetesWorker(releaseName, k8sImage, version string) *upgradecattlev1.Plan {
+	p := basePlan(kubernetesWorkerName(version), true)
 	p.Labels = map[string]string{
 		ReleaseNameLabel:    releaseName,
 		ReleaseVersionLabel: SanitizeVersion(version),
@@ -82,16 +79,14 @@ func OSWorker(releaseName, osImage, version string) *upgradecattlev1.Plan {
 			{
 				Key:      controlPlaneLabel,
 				Operator: "NotIn",
-				Values: []string{
-					"true",
-				},
+				Values:   []string{"true"},
 			},
 		},
 	}
 	p.Spec.Upgrade = &upgradecattlev1.ContainerSpec{
-		Image:   upgradeImage,
-		Command: []string{"elemental3ctl"},
-		Args:    []string{"upgrade", "--os-image", osImage},
+		// TODO: Fill in upgrade execution
+		Command: []string{""},
+		Args:    []string{""},
 	}
 	return p
 }
