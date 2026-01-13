@@ -26,6 +26,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/handler"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 
 	upgradecattlev1 "github.com/rancher/system-upgrade-controller/pkg/apis/upgrade.cattle.io/v1"
@@ -72,7 +73,6 @@ func (r *ReleaseReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 	// Attempt to update the release status before returning.
 	return result, errors.Join(err, r.Status().Update(ctx, release))
 }
-
 func (r *ReleaseReconciler) reconcileNormal(ctx context.Context, release *lifecyclev1alpha1.Release) (ctrl.Result, error) {
 	logger := log.FromContext(ctx)
 	logger.Info("Upgrade to the platform requested",
@@ -153,5 +153,30 @@ func (r *ReleaseReconciler) cleanupOldVersionPlans(ctx context.Context, releaseN
 func (r *ReleaseReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&lifecyclev1alpha1.Release{}).
+		Watches(&upgradecattlev1.Plan{}, handler.EnqueueRequestsFromMapFunc(r.mapPlanToRelease)).
 		Complete(r)
+}
+
+// mapPlanToRelease maps SUC Plan events to Release reconcile requests.
+// Uses the release name label on the Plan to find the corresponding Release.
+func (r *ReleaseReconciler) mapPlanToRelease(ctx context.Context, obj client.Object) []ctrl.Request {
+	releaseName := obj.GetLabels()[plan.ReleaseNameLabel]
+	if releaseName == "" {
+		return nil
+	}
+
+	releaseList := &lifecyclev1alpha1.ReleaseList{}
+	if err := r.List(ctx, releaseList); err != nil {
+		return nil
+	}
+
+	for _, rel := range releaseList.Items {
+		if rel.Name == releaseName {
+			return []ctrl.Request{{
+				NamespacedName: client.ObjectKeyFromObject(&rel),
+			}}
+		}
+	}
+
+	return nil
 }
