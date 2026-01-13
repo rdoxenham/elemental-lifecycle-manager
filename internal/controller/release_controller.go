@@ -28,7 +28,9 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 
+	upgradecattlev1 "github.com/rancher/system-upgrade-controller/pkg/apis/upgrade.cattle.io/v1"
 	lifecyclev1alpha1 "github.com/suse/elemental-lifecycle-manager/api/v1alpha1"
+	"github.com/suse/elemental-lifecycle-manager/internal/plan"
 	"github.com/suse/elemental-lifecycle-manager/internal/upgrade"
 	"github.com/suse/elemental/v3/pkg/manifest/resolver"
 )
@@ -96,6 +98,13 @@ func (r *ReleaseReconciler) reconcileNormal(ctx context.Context, release *lifecy
 
 	logger.Info("Reconciling upgrade", "version", config.Version)
 
+	// Clean up plans from previous versions before creating new ones
+	if release.Status.Version != "" && release.Status.Version != config.Version {
+		if err := r.cleanupOldVersionPlans(ctx, release.Name, release.Status.Version); err != nil {
+			logger.Error(err, "Failed to cleanup old version plans", "oldVersion", release.Status.Version)
+		}
+	}
+
 	result, err := r.Orchestrator.Reconcile(ctx, config)
 	if err != nil {
 		setPhaseConditionFromError(release, err)
@@ -110,6 +119,34 @@ func (r *ReleaseReconciler) reconcileNormal(ctx context.Context, release *lifecy
 	}
 
 	return ctrl.Result{RequeueAfter: requeueInterval}, nil
+}
+
+// cleanupOldVersionPlans deletes SUC Plans from a previous version.
+func (r *ReleaseReconciler) cleanupOldVersionPlans(ctx context.Context, releaseName, oldVersion string) error {
+	logger := log.FromContext(ctx)
+	logger.Info("Cleaning up old version plans",
+		"release", releaseName,
+		"oldVersion", oldVersion)
+
+	planList := &upgradecattlev1.PlanList{}
+	if err := r.List(ctx, planList,
+		client.InNamespace(plan.SUCNamespace),
+		client.MatchingLabels{
+			plan.ReleaseNameLabel:    releaseName,
+			plan.ReleaseVersionLabel: plan.SanitizeVersion(oldVersion),
+		},
+	); err != nil {
+		return fmt.Errorf("listing old plans: %w", err)
+	}
+
+	for _, p := range planList.Items {
+		logger.Info("Deleting old plan", "name", p.Name)
+		if err := r.Delete(ctx, &p); err != nil {
+			return fmt.Errorf("deleting plan %s: %w", p.Name, err)
+		}
+	}
+
+	return nil
 }
 
 // SetupWithManager sets up the controller with the Manager.
