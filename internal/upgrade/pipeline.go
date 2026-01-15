@@ -23,6 +23,17 @@ import (
 	lifecyclev1alpha1 "github.com/suse/elemental-lifecycle-manager/api/v1alpha1"
 )
 
+// PhaseHandler defines the interface for handling a single upgrade phase in the pipeline.
+type PhaseHandler interface {
+	// Phase returns the phase this handler is responsible for.
+	Phase() Phase
+	// ShouldReconcile returns true if this phase should be reconciled given the config.
+	// Use this to skip phases that are not applicable (e.g., no Helm charts configured).
+	ShouldReconcile(config *Config) bool
+	// Reconcile performs the reconciliation for this phase and returns the status.
+	Reconcile(ctx context.Context, config *Config) (*PhaseStatus, error)
+}
+
 // Pipeline executes upgrade phases in sequence, stopping when a phase
 // is not yet complete. This allows the controller to resume from where
 // it left off on the next reconciliation.
@@ -71,6 +82,19 @@ func (p *Pipeline) Reconcile(ctx context.Context, config *Config) (*Result, erro
 	}
 
 	return result, nil
+}
+
+// SUCPlanReconciler defines the interface for reconciling Rancher System Upgrade Controller Plans.
+type SUCPlanReconciler interface {
+	// ReconcilePlans ensures the SUC Plans for a particular configuration exist and returns their current status.
+	ReconcilePlans(ctx context.Context, releaseName string, config *SUCPlanConfig) (*PhaseStatus, error)
+}
+
+// HelmChartReconciler defines the interface for reconciling Helm Controller HelmChart resources.
+type HelmChartReconciler interface {
+	// ReconcileHelmCharts ensures the HelmChart resources exist and are up to date.
+	// Returns the current status of the Helm chart deployments.
+	ReconcileHelmCharts(ctx context.Context, config *HelmChartConfig) (*PhaseStatus, error)
 }
 
 // OSPhaseHandler handles the OS upgrade phase.

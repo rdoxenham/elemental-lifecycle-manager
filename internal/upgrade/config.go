@@ -24,6 +24,40 @@ import (
 	"github.com/suse/elemental/v3/pkg/manifest/resolver"
 )
 
+// Config represents a complete upgrade specification for all phases.
+type Config struct {
+	// ReleaseName is the name of the Release resource.
+	ReleaseName string
+	// Version is the target release version.
+	Version string
+	// OS contains the SUC Plan configuration for OS upgrades.
+	OS *SUCPlanConfig
+	// Kubernetes contains the SUC Plan configuration for Kubernetes upgrades.
+	Kubernetes *SUCPlanConfig
+	// HelmCharts contains the Helm charts to deploy via Helm Controller.
+	HelmCharts *HelmChartConfig
+}
+
+// SUCPlanConfig contains configuration for creating a Rancher System Upgrade Controller Plan.
+type SUCPlanConfig struct {
+	// Image is the target image for the upgrade.
+	Image string
+	// Version is the target version.
+	Version string
+}
+
+// HelmChartConfig contains configuration for Helm Controller HelmChart resources.
+type HelmChartConfig struct {
+	// ReleaseName is the name of the Release resource managing these charts.
+	ReleaseName string
+	// ReleaseVersion is the target release version.
+	ReleaseVersion string
+	// Charts is the list of Helm charts to deploy/upgrade.
+	Charts []*api.HelmChart
+	// Repositories is the list of Helm repositories.
+	Repositories []*api.HelmRepository
+}
+
 // NewConfig creates a release upgrade specification from the resolved manifest.
 // The upgrade is built by extracting configuration from the core platform
 // and optionally merging with product extension components.
