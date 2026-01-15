@@ -141,10 +141,11 @@ func main() {
 		Client:           k8sClient,
 		Scheme:           mgr.GetScheme(),
 		RetrieveManifest: release.RetrieveManifest,
-		Orchestrator: upgrade.NewOrchestrator(
-			upgrade.NewOSReconciler(k8sClient),
-			upgrade.NewKubernetesReconciler(k8sClient),
-			upgrade.NewHelmReconciler(k8sClient, helmClient)),
+		Pipeline: upgrade.NewPipeline(
+			upgrade.NewOSPhaseHandler(upgrade.NewOSReconciler(k8sClient)),
+			upgrade.NewKubernetesPhaseHandler(upgrade.NewKubernetesReconciler(k8sClient)),
+			upgrade.NewHelmChartsPhaseHandler(upgrade.NewHelmReconciler(k8sClient, helmClient)),
+		),
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "Release")
 		os.Exit(1)

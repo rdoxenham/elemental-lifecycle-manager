@@ -127,3 +127,14 @@ type HelmChartReconciler interface {
 	// Returns the current status of the Helm chart deployments.
 	ReconcileHelmCharts(ctx context.Context, config *HelmChartConfig) (*PhaseStatus, error)
 }
+
+// PhaseHandler defines the interface for handling a single upgrade phase in the pipeline.
+type PhaseHandler interface {
+	// Phase returns the phase this handler is responsible for.
+	Phase() Phase
+	// ShouldReconcile returns true if this phase should be reconciled given the config.
+	// Use this to skip phases that are not applicable (e.g., no Helm charts configured).
+	ShouldReconcile(config *Config) bool
+	// Reconcile performs the reconciliation for this phase and returns the status.
+	Reconcile(ctx context.Context, config *Config) (*PhaseStatus, error)
+}

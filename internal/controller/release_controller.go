@@ -45,7 +45,7 @@ type ReleaseReconciler struct {
 	Scheme *runtime.Scheme
 
 	RetrieveManifest func(ctx context.Context, registry, version string) (*resolver.ResolvedManifest, error)
-	Orchestrator     *upgrade.Orchestrator
+	Pipeline         *upgrade.Pipeline
 }
 
 // +kubebuilder:rbac:groups=lifecycle.suse.com,resources=releases,verbs=get;list;watch;create;update;patch;delete
@@ -95,7 +95,7 @@ func (r *ReleaseReconciler) reconcileNormal(ctx context.Context, release *lifecy
 	setCondition(release, lifecyclev1alpha1.ConditionManifestResolved, metav1.ConditionTrue,
 		lifecyclev1alpha1.UpgradeSucceeded, "Release manifest retrieved successfully")
 
-	config, err := r.Orchestrator.BuildConfig(manifest, release.Name)
+	config, err := upgrade.NewConfig(manifest, release.Name)
 	if err != nil {
 		return ctrl.Result{}, fmt.Errorf("building upgrade config: %w", err)
 	}
@@ -109,7 +109,7 @@ func (r *ReleaseReconciler) reconcileNormal(ctx context.Context, release *lifecy
 		}
 	}
 
-	result, err := r.Orchestrator.Reconcile(ctx, config)
+	result, err := r.Pipeline.Reconcile(ctx, config)
 	if err != nil {
 		setPhaseConditionFromError(release, err)
 		return ctrl.Result{}, fmt.Errorf("reconciling upgrade: %w", err)
