@@ -21,6 +21,7 @@ import (
 	"fmt"
 	"strings"
 
+	lifecyclev1alpha1 "github.com/suse/elemental-lifecycle-manager/api/v1alpha1"
 	"github.com/suse/elemental/v3/pkg/manifest/api"
 	"github.com/suse/elemental/v3/pkg/manifest/resolver"
 )
@@ -137,11 +138,19 @@ func (o *Orchestrator) Reconcile(ctx context.Context, config *Config) (*Result, 
 	}
 	result.PhaseStates[PhaseOS] = osState
 
+	if osState.State != lifecyclev1alpha1.UpgradeSucceeded {
+		return result, nil
+	}
+
 	k8sState, err := o.kubernetesPlanReconciler.ReconcilePlans(ctx, config.ReleaseName, config.Kubernetes)
 	if err != nil {
 		return result, &PhaseError{Phase: PhaseKubernetes, Err: err}
 	}
 	result.PhaseStates[PhaseKubernetes] = k8sState
+
+	if k8sState.State != lifecyclev1alpha1.UpgradeSucceeded {
+		return result, nil
+	}
 
 	if config.HelmCharts != nil {
 		helmState, err := o.helmChartReconciler.ReconcileHelmCharts(ctx, config.HelmCharts)
