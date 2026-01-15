@@ -40,13 +40,15 @@ func kubernetesWorkerName(version string) string {
 }
 
 // KubernetesControlPlane builds a SUC Plan for Kubernetes upgrades on control plane nodes.
-func KubernetesControlPlane(releaseName, k8sImage, version string) *upgradecattlev1.Plan {
-	p := basePlan(kubernetesControlPlaneName(version), true)
+func KubernetesControlPlane(releaseName, k8sImage, releaseVersion string) *upgradecattlev1.Plan {
+	k8sVersion := parseVersion(k8sImage)
+
+	p := basePlan(kubernetesControlPlaneName(k8sVersion), true)
 	p.Labels = map[string]string{
 		lifecyclev1alpha1.ReleaseNameLabel:    releaseName,
-		lifecyclev1alpha1.ReleaseVersionLabel: lifecyclev1alpha1.SanitizeVersion(version),
+		lifecyclev1alpha1.ReleaseVersionLabel: lifecyclev1alpha1.SanitizeVersion(releaseVersion),
 	}
-	p.Spec.Version = version
+	p.Spec.Version = releaseVersion
 	p.Spec.Concurrency = 1
 	p.Spec.NodeSelector = &metav1.LabelSelector{
 		MatchExpressions: []metav1.LabelSelectorRequirement{
@@ -67,13 +69,15 @@ func KubernetesControlPlane(releaseName, k8sImage, version string) *upgradecattl
 }
 
 // KubernetesWorker builds a SUC Plan for Kubernetes upgrades on worker nodes.
-func KubernetesWorker(releaseName, k8sImage, version string) *upgradecattlev1.Plan {
-	p := basePlan(kubernetesWorkerName(version), true)
+func KubernetesWorker(releaseName, k8sImage, releaseVersion string) *upgradecattlev1.Plan {
+	k8sVersion := parseVersion(k8sImage)
+
+	p := basePlan(kubernetesWorkerName(k8sVersion), true)
 	p.Labels = map[string]string{
 		lifecyclev1alpha1.ReleaseNameLabel:    releaseName,
-		lifecyclev1alpha1.ReleaseVersionLabel: lifecyclev1alpha1.SanitizeVersion(version),
+		lifecyclev1alpha1.ReleaseVersionLabel: lifecyclev1alpha1.SanitizeVersion(releaseVersion),
 	}
-	p.Spec.Version = version
+	p.Spec.Version = releaseVersion
 	p.Spec.Concurrency = 1
 	p.Spec.NodeSelector = &metav1.LabelSelector{
 		MatchExpressions: []metav1.LabelSelectorRequirement{

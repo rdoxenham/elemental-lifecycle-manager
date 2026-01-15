@@ -17,6 +17,8 @@ limitations under the License.
 package plan
 
 import (
+	"strings"
+
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/intstr"
 
@@ -68,4 +70,18 @@ func basePlan(name string, drain bool) *upgradecattlev1.Plan {
 	}
 
 	return plan
+}
+
+func parseVersion(image string) string {
+	i := strings.LastIndex(image, ":")
+
+	// Find the last slash to ensure the colon we found
+	// isn't just a port number in the registry URL
+	lastSlash := strings.LastIndex(image, "/")
+
+	if i == -1 || i < lastSlash {
+		return "latest"
+	}
+
+	return image[i+1:]
 }
