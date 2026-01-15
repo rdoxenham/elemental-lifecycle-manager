@@ -20,6 +20,7 @@ import (
 	"fmt"
 
 	upgradecattlev1 "github.com/rancher/system-upgrade-controller/pkg/apis/upgrade.cattle.io/v1"
+	lifecyclev1alpha1 "github.com/suse/elemental-lifecycle-manager/api/v1alpha1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
@@ -30,12 +31,12 @@ const (
 
 // osControlPlaneName returns the full plan name for the given version.
 func osControlPlaneName(version string) string {
-	return fmt.Sprintf("%s-%s", osControlPlaneBaseName, SanitizeVersion(version))
+	return fmt.Sprintf("%s-%s", osControlPlaneBaseName, lifecyclev1alpha1.SanitizeVersion(version))
 }
 
 // osWorkerName returns the full plan name for the given version.
 func osWorkerName(version string) string {
-	return fmt.Sprintf("%s-%s", osWorkerBaseName, SanitizeVersion(version))
+	return fmt.Sprintf("%s-%s", osWorkerBaseName, lifecyclev1alpha1.SanitizeVersion(version))
 }
 
 // OSControlPlane builds a SUC Plan for OS upgrades on control plane nodes.
@@ -43,8 +44,8 @@ func osWorkerName(version string) string {
 func OSControlPlane(releaseName, osImage, version string) *upgradecattlev1.Plan {
 	p := basePlan(osControlPlaneName(version), true)
 	p.Labels = map[string]string{
-		ReleaseNameLabel:    releaseName,
-		ReleaseVersionLabel: SanitizeVersion(version),
+		lifecyclev1alpha1.ReleaseNameLabel:    releaseName,
+		lifecyclev1alpha1.ReleaseVersionLabel: lifecyclev1alpha1.SanitizeVersion(version),
 	}
 	p.Spec.Version = version
 	p.Spec.Concurrency = 1
@@ -72,8 +73,8 @@ func OSControlPlane(releaseName, osImage, version string) *upgradecattlev1.Plan 
 func OSWorker(releaseName, osImage, version string) *upgradecattlev1.Plan {
 	p := basePlan(osWorkerName(version), true)
 	p.Labels = map[string]string{
-		ReleaseNameLabel:    releaseName,
-		ReleaseVersionLabel: SanitizeVersion(version),
+		lifecyclev1alpha1.ReleaseNameLabel:    releaseName,
+		lifecyclev1alpha1.ReleaseVersionLabel: lifecyclev1alpha1.SanitizeVersion(version),
 	}
 	p.Spec.Version = version
 	p.Spec.Concurrency = 1

@@ -17,8 +17,6 @@ limitations under the License.
 package plan
 
 import (
-	"strings"
-
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/intstr"
 
@@ -26,20 +24,15 @@ import (
 )
 
 const (
-	SUCNamespace = "cattle-system"
+	// Namespace for the SUC Plans.
+	Namespace = "cattle-system"
 
-	controlPlaneLabel   = "node-role.kubernetes.io/control-plane"
-	ReleaseNameLabel    = "lifecycle.suse.com/release"
-	ReleaseVersionLabel = "lifecycle.suse.com/version"
+	// Identifier of control plane nodes.
+	controlPlaneLabel = "node-role.kubernetes.io/control-plane"
 
+	// Container image for executing an upgrade.
 	upgradeImage = "registry.suse.com/bci/bci-base:16.0"
 )
-
-// SanitizeVersion converts a version string to a valid Kubernetes name suffix.
-// Replaces dots with dashes (e.g., "1.2.3" -> "1-2-3").
-func SanitizeVersion(version string) string {
-	return strings.ReplaceAll(version, ".", "-")
-}
 
 func basePlan(name string, drain bool) *upgradecattlev1.Plan {
 	const (
@@ -55,7 +48,7 @@ func basePlan(name string, drain bool) *upgradecattlev1.Plan {
 		},
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      name,
-			Namespace: SUCNamespace,
+			Namespace: Namespace,
 		},
 		Spec: upgradecattlev1.PlanSpec{
 			ServiceAccountName: serviceAccountName,

@@ -20,6 +20,7 @@ import (
 	"fmt"
 
 	upgradecattlev1 "github.com/rancher/system-upgrade-controller/pkg/apis/upgrade.cattle.io/v1"
+	lifecyclev1alpha1 "github.com/suse/elemental-lifecycle-manager/api/v1alpha1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
@@ -30,20 +31,20 @@ const (
 
 // kubernetesControlPlaneName returns the full plan name for the given version.
 func kubernetesControlPlaneName(version string) string {
-	return fmt.Sprintf("%s-%s", kubernetesControlPlaneBaseName, SanitizeVersion(version))
+	return fmt.Sprintf("%s-%s", kubernetesControlPlaneBaseName, lifecyclev1alpha1.SanitizeVersion(version))
 }
 
 // kubernetesWorkerName returns the full plan name for the given version.
 func kubernetesWorkerName(version string) string {
-	return fmt.Sprintf("%s-%s", kubernetesWorkerBaseName, SanitizeVersion(version))
+	return fmt.Sprintf("%s-%s", kubernetesWorkerBaseName, lifecyclev1alpha1.SanitizeVersion(version))
 }
 
 // KubernetesControlPlane builds a SUC Plan for Kubernetes upgrades on control plane nodes.
 func KubernetesControlPlane(releaseName, k8sImage, version string) *upgradecattlev1.Plan {
 	p := basePlan(kubernetesControlPlaneName(version), true)
 	p.Labels = map[string]string{
-		ReleaseNameLabel:    releaseName,
-		ReleaseVersionLabel: SanitizeVersion(version),
+		lifecyclev1alpha1.ReleaseNameLabel:    releaseName,
+		lifecyclev1alpha1.ReleaseVersionLabel: lifecyclev1alpha1.SanitizeVersion(version),
 	}
 	p.Spec.Version = version
 	p.Spec.Concurrency = 1
@@ -69,8 +70,8 @@ func KubernetesControlPlane(releaseName, k8sImage, version string) *upgradecattl
 func KubernetesWorker(releaseName, k8sImage, version string) *upgradecattlev1.Plan {
 	p := basePlan(kubernetesWorkerName(version), true)
 	p.Labels = map[string]string{
-		ReleaseNameLabel:    releaseName,
-		ReleaseVersionLabel: SanitizeVersion(version),
+		lifecyclev1alpha1.ReleaseNameLabel:    releaseName,
+		lifecyclev1alpha1.ReleaseVersionLabel: lifecyclev1alpha1.SanitizeVersion(version),
 	}
 	p.Spec.Version = version
 	p.Spec.Concurrency = 1

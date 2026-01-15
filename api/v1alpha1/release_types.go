@@ -17,8 +17,22 @@ limitations under the License.
 package v1alpha1
 
 import (
+	"strings"
+
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
+
+// Label identification for a Release resource.
+const (
+	ReleaseNameLabel    = "lifecycle.suse.com/release"
+	ReleaseVersionLabel = "lifecycle.suse.com/version"
+)
+
+// SanitizeVersion converts a version string to a valid Kubernetes name suffix.
+// Replaces dots with dashes (e.g., "1.2.3" -> "1-2-3").
+func SanitizeVersion(version string) string {
+	return strings.ReplaceAll(version, ".", "-")
+}
 
 // Condition types for Release status.
 const (
@@ -45,6 +59,9 @@ const (
 
 	// UpgradeInProgress indicates that the upgrade process has started.
 	UpgradeInProgress = "InProgress"
+
+	// UpgradeSkipped indicates that the upgrade has been skipped.
+	UpgradeSkipped = "Skipped"
 
 	// UpgradeSucceeded indicates that the upgrade process has been successful.
 	UpgradeSucceeded = "Succeeded"

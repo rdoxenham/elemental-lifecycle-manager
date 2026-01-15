@@ -29,6 +29,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/handler"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 
+	helmv1 "github.com/k3s-io/helm-controller/pkg/apis/helm.cattle.io/v1"
 	upgradecattlev1 "github.com/rancher/system-upgrade-controller/pkg/apis/upgrade.cattle.io/v1"
 	lifecyclev1alpha1 "github.com/suse/elemental-lifecycle-manager/api/v1alpha1"
 	"github.com/suse/elemental-lifecycle-manager/internal/plan"
@@ -52,7 +53,10 @@ type ReleaseReconciler struct {
 // +kubebuilder:rbac:groups=lifecycle.suse.com,resources=releases/finalizers,verbs=update
 // +kubebuilder:rbac:groups="",resources=nodes,verbs=watch;list
 // +kubebuilder:rbac:groups="",resources=configmaps,verbs=get;list;watch;create;update;patch
+// +kubebuilder:rbac:groups="",resources=secrets,verbs=get;list;watch
 // +kubebuilder:rbac:groups=upgrade.cattle.io,resources=plans,verbs=get;list;watch;create;update;patch;delete
+// +kubebuilder:rbac:groups=helm.cattle.io,resources=helmcharts,verbs=get;list;watch;create;update;patch
+// +kubebuilder:rbac:groups=batch,resources=jobs,verbs=get;list;watch
 
 // Reconcile is part of the main kubernetes reconciliation loop which aims to
 // move the current state of the cluster closer to the desired state.
@@ -130,10 +134,10 @@ func (r *ReleaseReconciler) cleanupOldVersionPlans(ctx context.Context, releaseN
 
 	planList := &upgradecattlev1.PlanList{}
 	if err := r.List(ctx, planList,
-		client.InNamespace(plan.SUCNamespace),
+		client.InNamespace(plan.Namespace),
 		client.MatchingLabels{
-			plan.ReleaseNameLabel:    releaseName,
-			plan.ReleaseVersionLabel: plan.SanitizeVersion(oldVersion),
+			lifecyclev1alpha1.ReleaseNameLabel:    releaseName,
+			lifecyclev1alpha1.ReleaseVersionLabel: lifecyclev1alpha1.SanitizeVersion(oldVersion),
 		},
 	); err != nil {
 		return fmt.Errorf("listing old plans: %w", err)
@@ -154,13 +158,43 @@ func (r *ReleaseReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&lifecyclev1alpha1.Release{}).
 		Watches(&upgradecattlev1.Plan{}, handler.EnqueueRequestsFromMapFunc(r.mapPlanToRelease)).
+		Watches(&helmv1.HelmChart{}, handler.EnqueueRequestsFromMapFunc(r.mapHelmChartToRelease)).
 		Complete(r)
 }
 
 // mapPlanToRelease maps SUC Plan events to Release reconcile requests.
 // Uses the release name label on the Plan to find the corresponding Release.
 func (r *ReleaseReconciler) mapPlanToRelease(ctx context.Context, obj client.Object) []ctrl.Request {
-	releaseName := obj.GetLabels()[plan.ReleaseNameLabel]
+	releaseName := obj.GetLabels()[lifecyclev1alpha1.ReleaseNameLabel]
+	if releaseName == "" {
+		return nil
+	}
+
+	releaseList := &lifecyclev1alpha1.ReleaseList{}
+	if err := r.List(ctx, releaseList); err != nil {
+		return nil
+	}
+
+	for _, rel := range releaseList.Items {
+		if rel.Name == releaseName {
+			return []ctrl.Request{{
+				NamespacedName: client.ObjectKeyFromObject(&rel),
+			}}
+		}
+	}
+
+	return nil
+}
+
+// mapHelmChartToRelease maps HelmChart events to Release reconcile requests.
+// Uses the release name label on the HelmChart to find the corresponding Release.
+func (r *ReleaseReconciler) mapHelmChartToRelease(ctx context.Context, obj client.Object) []ctrl.Request {
+	// Only watch HelmCharts in the namespace where we create them
+	if obj.GetNamespace() != upgrade.HelmChartNamespace {
+		return nil
+	}
+
+	releaseName := obj.GetLabels()[lifecyclev1alpha1.ReleaseNameLabel]
 	if releaseName == "" {
 		return nil
 	}

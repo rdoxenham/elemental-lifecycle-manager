@@ -23,8 +23,6 @@ import (
 
 	"github.com/suse/elemental/v3/pkg/manifest/api"
 	"github.com/suse/elemental/v3/pkg/manifest/resolver"
-
-	lifecyclev1alpha1 "github.com/suse/elemental-lifecycle-manager/api/v1alpha1"
 )
 
 // Orchestrator coordinates the upgrade process across all phases.
@@ -78,20 +76,22 @@ func (o *Orchestrator) BuildConfig(manifest *resolver.ResolvedManifest, releaseN
 	}
 
 	if manifest.ProductExtension == nil {
-		config.HelmCharts = o.buildHelmChartConfig(core.Components.Helm, nil)
+		config.HelmCharts = o.buildHelmChartConfig(releaseName, config.Version, core.Components.Helm, nil)
 	} else {
 		product := manifest.ProductExtension
-		config.HelmCharts = o.buildHelmChartConfig(core.Components.Helm, product.Components.Helm)
+		config.HelmCharts = o.buildHelmChartConfig(releaseName, config.Version, core.Components.Helm, product.Components.Helm)
 	}
 
 	return config, nil
 }
 
 // buildHelmChartConfig merges Helm configurations from core and product manifests.
-func (o *Orchestrator) buildHelmChartConfig(core *api.Helm, product *api.Helm) *HelmChartConfig {
+func (o *Orchestrator) buildHelmChartConfig(releaseName, version string, core *api.Helm, product *api.Helm) *HelmChartConfig {
 	config := &HelmChartConfig{
-		Charts:       make([]*api.HelmChart, 0),
-		Repositories: make([]*api.HelmRepository, 0),
+		ReleaseName:    releaseName,
+		ReleaseVersion: version,
+		Charts:         make([]*api.HelmChart, 0),
+		Repositories:   make([]*api.HelmRepository, 0),
 	}
 
 	// Add core charts and repositories
@@ -144,11 +144,11 @@ func (o *Orchestrator) Reconcile(ctx context.Context, config *Config) (*Result, 
 	result.PhaseStates[PhaseKubernetes] = k8sState
 
 	if config.HelmCharts != nil {
-		if err := o.helmChartReconciler.ReconcileHelmCharts(ctx, config.HelmCharts); err != nil {
+		helmState, err := o.helmChartReconciler.ReconcileHelmCharts(ctx, config.HelmCharts)
+		if err != nil {
 			return result, &PhaseError{Phase: PhaseHelmCharts, Err: err}
 		}
-		// TODO: HelmChartReconciler should return PhaseStatus
-		result.PhaseStates[PhaseHelmCharts] = &PhaseStatus{State: lifecyclev1alpha1.UpgradeSucceeded, Message: "Helm charts reconciled"}
+		result.PhaseStates[PhaseHelmCharts] = helmState
 	}
 
 	return result, nil

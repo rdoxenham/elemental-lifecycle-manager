@@ -38,6 +38,7 @@ import (
 
 	lifecyclev1alpha1 "github.com/suse/elemental-lifecycle-manager/api/v1alpha1"
 	"github.com/suse/elemental-lifecycle-manager/internal/controller"
+	"github.com/suse/elemental-lifecycle-manager/internal/helm"
 	"github.com/suse/elemental-lifecycle-manager/internal/release"
 	"github.com/suse/elemental-lifecycle-manager/internal/upgrade"
 	// +kubebuilder:scaffold:imports
@@ -128,16 +129,22 @@ func main() {
 		os.Exit(1)
 	}
 
-	client := mgr.GetClient()
+	k8sClient := mgr.GetClient()
+
+	helmClient, err := helm.NewClient()
+	if err != nil {
+		setupLog.Error(err, "unable to create helm client")
+		os.Exit(1)
+	}
 
 	if err = (&controller.ReleaseReconciler{
-		Client:           client,
+		Client:           k8sClient,
 		Scheme:           mgr.GetScheme(),
 		RetrieveManifest: release.RetrieveManifest,
 		Orchestrator: upgrade.NewOrchestrator(
-			upgrade.NewOSReconciler(client),
-			upgrade.NewKubernetesReconciler(client),
-			nil),
+			upgrade.NewOSReconciler(k8sClient),
+			upgrade.NewKubernetesReconciler(k8sClient),
+			upgrade.NewHelmReconciler(k8sClient, helmClient)),
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "Release")
 		os.Exit(1)

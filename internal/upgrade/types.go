@@ -75,6 +75,10 @@ type SUCPlanConfig struct {
 
 // HelmChartConfig contains configuration for Helm Controller HelmChart resources.
 type HelmChartConfig struct {
+	// ReleaseName is the name of the Release resource managing these charts.
+	ReleaseName string
+	// ReleaseVersion is the target release version.
+	ReleaseVersion string
 	// Charts is the list of Helm charts to deploy/upgrade.
 	Charts []*api.HelmChart
 	// Repositories is the list of Helm repositories.
@@ -120,5 +124,6 @@ type SUCPlanReconciler interface {
 // HelmChartReconciler defines the interface for reconciling Helm Controller HelmChart resources.
 type HelmChartReconciler interface {
 	// ReconcileHelmCharts ensures the HelmChart resources exist and are up to date.
-	ReconcileHelmCharts(ctx context.Context, config *HelmChartConfig) error
+	// Returns the current status of the Helm chart deployments.
+	ReconcileHelmCharts(ctx context.Context, config *HelmChartConfig) (*PhaseStatus, error)
 }
