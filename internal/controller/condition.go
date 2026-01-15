@@ -37,8 +37,8 @@ func setCondition(release *lifecyclev1alpha1.Release, conditionType string, stat
 }
 
 // initializePendingConditions sets pending conditions for phases that don't have a condition yet.
-func initializePendingConditions(release *lifecyclev1alpha1.Release) {
-	for _, phase := range upgrade.AllPhases {
+func initializePendingConditions(release *lifecyclev1alpha1.Release, phases []upgrade.Phase) {
+	for _, phase := range phases {
 		conditionType := phase.ConditionType()
 		existing := apimeta.FindStatusCondition(release.Status.Conditions, conditionType)
 		if existing == nil {
@@ -82,7 +82,7 @@ func updatePhaseCondition(release *lifecyclev1alpha1.Release, phase upgrade.Phas
 }
 
 // updateAppliedCondition sets the Applied condition based on all phase conditions.
-func updateAppliedCondition(release *lifecyclev1alpha1.Release) {
+func updateAppliedCondition(release *lifecyclev1alpha1.Release, phases []upgrade.Phase) {
 	// Check if manifest is retrieved
 	manifestCond := apimeta.FindStatusCondition(release.Status.Conditions, lifecyclev1alpha1.ConditionManifestResolved)
 	if manifestCond == nil || manifestCond.Status != metav1.ConditionTrue {
@@ -94,7 +94,7 @@ func updateAppliedCondition(release *lifecyclev1alpha1.Release) {
 	allSucceeded := true
 	var failedPhase, inProgressPhase string
 
-	for _, phase := range upgrade.AllPhases {
+	for _, phase := range phases {
 		conditionType := phase.ConditionType()
 		cond := apimeta.FindStatusCondition(release.Status.Conditions, conditionType)
 		if cond == nil {

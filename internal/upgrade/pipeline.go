@@ -84,6 +84,14 @@ func (p *Pipeline) Reconcile(ctx context.Context, config *Config) (*Result, erro
 	return result, nil
 }
 
+func (p *Pipeline) Phases() []Phase {
+	phases := make([]Phase, 0, len(p.handlers))
+	for _, h := range p.handlers {
+		phases = append(phases, h.Phase())
+	}
+	return phases
+}
+
 // SUCPlanReconciler defines the interface for reconciling Rancher System Upgrade Controller Plans.
 type SUCPlanReconciler interface {
 	// ReconcilePlans ensures the SUC Plans for a particular configuration exist and returns their current status.

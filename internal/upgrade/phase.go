@@ -33,13 +33,6 @@ var (
 	PhaseHelmCharts = Phase(strings.TrimSuffix(lifecyclev1alpha1.ConditionHelmChartsUpgraded, "Upgraded"))
 )
 
-// AllPhases lists all upgrade phases in order.
-var AllPhases = []Phase{
-	PhaseOS,
-	PhaseKubernetes,
-	PhaseHelmCharts,
-}
-
 // ConditionType returns the condition type string for this phase.
 func (p Phase) ConditionType() string {
 	return string(p) + "Upgraded"
