@@ -44,6 +44,8 @@ type SUCPlanConfig struct {
 	Image string
 	// Version is the target version.
 	Version string
+	// TODO: Populate this from the manifest.
+	OSPrettyName string
 }
 
 // HelmChartConfig contains configuration for Helm Controller HelmChart resources.

@@ -53,7 +53,7 @@ func KubernetesControlPlane(releaseName, k8sImage, releaseVersion string) *upgra
 	p.Spec.NodeSelector = &metav1.LabelSelector{
 		MatchExpressions: []metav1.LabelSelectorRequirement{
 			{
-				Key:      controlPlaneLabel,
+				Key:      ControlPlaneLabel,
 				Operator: "In",
 				Values:   []string{"true"},
 			},
@@ -82,7 +82,7 @@ func KubernetesWorker(releaseName, k8sImage, releaseVersion string) *upgradecatt
 	p.Spec.NodeSelector = &metav1.LabelSelector{
 		MatchExpressions: []metav1.LabelSelectorRequirement{
 			{
-				Key:      controlPlaneLabel,
+				Key:      ControlPlaneLabel,
 				Operator: "NotIn",
 				Values:   []string{"true"},
 			},

@@ -19,7 +19,6 @@ package upgrade
 import (
 	"context"
 	"fmt"
-	"strings"
 
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -59,40 +58,6 @@ func (r *planHandler) getOrCreatePlan(ctx context.Context, desired *upgradecattl
 	return existing, nil
 }
 
-func (r *planHandler) aggregateStatus(plans ...*upgradecattlev1.Plan) *PhaseStatus {
-	var failures []string
-	var inProgress bool
-
-	for _, p := range plans {
-		state, message := evaluatePlanStatus(p)
-		switch state {
-		case lifecyclev1alpha1.UpgradeFailed:
-			failures = append(failures, fmt.Sprintf("[%s] %s", p.Name, message))
-		case lifecyclev1alpha1.UpgradeInProgress:
-			inProgress = true
-		}
-	}
-
-	if len(failures) > 0 {
-		return &PhaseStatus{
-			State:   lifecyclev1alpha1.UpgradeFailed,
-			Message: strings.Join(failures, "; "),
-		}
-	}
-
-	if inProgress {
-		return &PhaseStatus{
-			State:   lifecyclev1alpha1.UpgradeInProgress,
-			Message: "Upgrade plan in progress",
-		}
-	}
-
-	return &PhaseStatus{
-		State:   lifecyclev1alpha1.UpgradeSucceeded,
-		Message: "All upgrade plans completed",
-	}
-}
-
 func evaluatePlanStatus(p *upgradecattlev1.Plan) (string, string) {
 	if len(p.Status.Applying) > 0 {
 		return lifecyclev1alpha1.UpgradeInProgress, "Nodes being upgraded"
@@ -110,4 +75,25 @@ func evaluatePlanStatus(p *upgradecattlev1.Plan) (string, string) {
 	}
 
 	return lifecyclev1alpha1.UpgradeInProgress, "Waiting for upgrade to complete"
+}
+
+// listNodes returns all nodes in the cluster.
+func (r *planHandler) listNodes(ctx context.Context) ([]corev1.Node, error) {
+	nodeList := &corev1.NodeList{}
+	if err := r.List(ctx, nodeList); err != nil {
+		return nil, err
+	}
+	return nodeList.Items, nil
+}
+
+// checkPlanFailure returns a failed PhaseStatus if the plan has failed, nil otherwise.
+func checkPlanFailure(p *upgradecattlev1.Plan) *PhaseStatus {
+	state, message := evaluatePlanStatus(p)
+	if state == lifecyclev1alpha1.UpgradeFailed {
+		return &PhaseStatus{
+			State:   lifecyclev1alpha1.UpgradeFailed,
+			Message: fmt.Sprintf("Plan %s failed: %s", p.Name, message),
+		}
+	}
+	return nil
 }

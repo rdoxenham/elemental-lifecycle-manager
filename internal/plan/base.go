@@ -29,8 +29,8 @@ const (
 	// Namespace for the SUC Plans.
 	Namespace = "cattle-system"
 
-	// Identifier of control plane nodes.
-	controlPlaneLabel = "node-role.kubernetes.io/control-plane"
+	// ControlPlaneLabel is an identifier of control plane nodes.
+	ControlPlaneLabel = "node-role.kubernetes.io/control-plane"
 
 	// Container image for executing an upgrade.
 	upgradeImage = "registry.suse.com/bci/bci-base:16.0"

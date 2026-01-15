@@ -54,7 +54,7 @@ func OSControlPlane(releaseName, osImage, releaseVersion string) *upgradecattlev
 	p.Spec.NodeSelector = &metav1.LabelSelector{
 		MatchExpressions: []metav1.LabelSelectorRequirement{
 			{
-				Key:      controlPlaneLabel,
+				Key:      ControlPlaneLabel,
 				Operator: "In",
 				Values: []string{
 					"true",
@@ -85,7 +85,7 @@ func OSWorker(releaseName, osImage, releaseVersion string) *upgradecattlev1.Plan
 	p.Spec.NodeSelector = &metav1.LabelSelector{
 		MatchExpressions: []metav1.LabelSelectorRequirement{
 			{
-				Key:      controlPlaneLabel,
+				Key:      ControlPlaneLabel,
 				Operator: "NotIn",
 				Values: []string{
 					"true",
