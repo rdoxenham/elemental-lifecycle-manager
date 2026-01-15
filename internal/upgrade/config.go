@@ -50,10 +50,6 @@ type SUCPlanConfig struct {
 
 // HelmChartConfig contains configuration for Helm Controller HelmChart resources.
 type HelmChartConfig struct {
-	// ReleaseName is the name of the Release resource managing these charts.
-	ReleaseName string
-	// ReleaseVersion is the target release version.
-	ReleaseVersion string
 	// Charts is the list of Helm charts to deploy/upgrade.
 	Charts []*api.HelmChart
 	// Repositories is the list of Helm repositories.
@@ -93,22 +89,20 @@ func NewConfig(manifest *resolver.ResolvedManifest, releaseName string) (*Config
 	}
 
 	if manifest.ProductExtension == nil {
-		config.HelmCharts = helmChartConfig(releaseName, config.Version, core.Components.Helm, nil)
+		config.HelmCharts = helmChartConfig(core.Components.Helm, nil)
 	} else {
 		product := manifest.ProductExtension
-		config.HelmCharts = helmChartConfig(releaseName, config.Version, core.Components.Helm, product.Components.Helm)
+		config.HelmCharts = helmChartConfig(core.Components.Helm, product.Components.Helm)
 	}
 
 	return config, nil
 }
 
 // helmChartConfig merges Helm configurations from core and product manifests.
-func helmChartConfig(releaseName, version string, core *api.Helm, product *api.Helm) *HelmChartConfig {
+func helmChartConfig(core, product *api.Helm) *HelmChartConfig {
 	config := &HelmChartConfig{
-		ReleaseName:    releaseName,
-		ReleaseVersion: version,
-		Charts:         make([]*api.HelmChart, 0),
-		Repositories:   make([]*api.HelmRepository, 0),
+		Charts:       make([]*api.HelmChart, 0),
+		Repositories: make([]*api.HelmRepository, 0),
 	}
 
 	// Add core charts and repositories

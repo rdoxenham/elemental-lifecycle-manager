@@ -27,37 +27,40 @@ import (
 	"github.com/suse/elemental-lifecycle-manager/internal/plan"
 )
 
-// KubernetesReconciler reconciles SUC Plans for Kubernetes upgrades.
+// KubernetesReconciler reconciles Kubernetes upgrades via SUC Plans and verifies node state.
 type KubernetesReconciler struct {
 	planHandler
 }
 
-// NewKubernetesReconciler creates a new Kubernetes reconciler.
 func NewKubernetesReconciler(c client.Client) *KubernetesReconciler {
 	return &KubernetesReconciler{
 		planHandler: planHandler{Client: c},
 	}
 }
 
-// ReconcilePlans ensures the SUC Plans for Kubernetes upgrades exist and returns their status.
-func (r *KubernetesReconciler) ReconcilePlans(ctx context.Context, releaseName string, config *SUCPlanConfig) (*PhaseStatus, error) {
-	logger := log.FromContext(ctx)
+func (r *KubernetesReconciler) Phase() Phase {
+	return PhaseKubernetes
+}
 
-	if config == nil {
-		return nil, fmt.Errorf("kubernetes plan config is nil")
-	}
+func (r *KubernetesReconciler) ShouldReconcile(config *Config) bool {
+	return config.Kubernetes != nil
+}
+
+func (r *KubernetesReconciler) Reconcile(ctx context.Context, config *Config) (*PhaseStatus, error) {
+	logger := log.FromContext(ctx)
+	k8sConfig := config.Kubernetes
 
 	logger.Info("Reconciling Kubernetes upgrade",
-		"image", config.Image,
-		"version", config.Version,
-		"release", releaseName)
+		"image", k8sConfig.Image,
+		"version", k8sConfig.Version,
+		"release", config.ReleaseName)
 
 	allNodes, err := r.listNodes(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("listing nodes: %w", err)
 	}
 
-	controlPlanePlan, err := r.getOrCreatePlan(ctx, plan.KubernetesControlPlane(releaseName, config.Image, config.Version))
+	controlPlanePlan, err := r.getOrCreatePlan(ctx, plan.KubernetesControlPlane(config.ReleaseName, k8sConfig.Image, k8sConfig.Version))
 	if err != nil {
 		return nil, fmt.Errorf("reconciling control plane plan: %w", err)
 	}
@@ -71,7 +74,7 @@ func (r *KubernetesReconciler) ReconcilePlans(ctx context.Context, releaseName s
 		return nil, fmt.Errorf("filtering control plane nodes: %w", err)
 	}
 
-	if !allNodesAtKubernetesVersion(cpNodes, config.Version) {
+	if !allNodesAtKubernetesVersion(cpNodes, k8sConfig.Version) {
 		return &PhaseStatus{
 			State:   lifecyclev1alpha1.UpgradeInProgress,
 			Message: "Control plane nodes are being upgraded",
@@ -88,7 +91,7 @@ func (r *KubernetesReconciler) ReconcilePlans(ctx context.Context, releaseName s
 		}, nil
 	}
 
-	workerPlan, err := r.getOrCreatePlan(ctx, plan.KubernetesWorker(releaseName, config.Image, config.Version))
+	workerPlan, err := r.getOrCreatePlan(ctx, plan.KubernetesWorker(config.ReleaseName, k8sConfig.Image, k8sConfig.Version))
 	if err != nil {
 		return nil, fmt.Errorf("reconciling worker plan: %w", err)
 	}
@@ -102,7 +105,7 @@ func (r *KubernetesReconciler) ReconcilePlans(ctx context.Context, releaseName s
 		return nil, fmt.Errorf("filtering worker nodes: %w", err)
 	}
 
-	if !allNodesAtKubernetesVersion(workerNodes, config.Version) {
+	if !allNodesAtKubernetesVersion(workerNodes, k8sConfig.Version) {
 		return &PhaseStatus{
 			State:   lifecyclev1alpha1.UpgradeInProgress,
 			Message: "Worker nodes are being upgraded",

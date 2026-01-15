@@ -70,22 +70,27 @@ func NewHelmReconciler(c client.Client, h helm.Client) *HelmReconciler {
 	}
 }
 
-// ReconcileHelmCharts ensures the HelmChart resources exist and are up to date.
+func (r *HelmReconciler) Phase() Phase {
+	return PhaseHelmCharts
+}
+
+func (r *HelmReconciler) ShouldReconcile(config *Config) bool {
+	return config.HelmCharts != nil && len(config.HelmCharts.Charts) != 0
+}
+
+func (r *HelmReconciler) Reconcile(ctx context.Context, config *Config) (*PhaseStatus, error) {
+	return r.reconcileHelmCharts(ctx, config.ReleaseName, config.Version, config.HelmCharts)
+}
+
+// reconcileHelmCharts ensures the HelmChart resources exist and are up to date.
 // Only charts that are already installed on the cluster will be upgraded.
 // Charts are processed in dependency order.
-func (r *HelmReconciler) ReconcileHelmCharts(ctx context.Context, config *HelmChartConfig) (*PhaseStatus, error) {
+func (r *HelmReconciler) reconcileHelmCharts(ctx context.Context, releaseName, releaseVersion string, config *HelmChartConfig) (*PhaseStatus, error) {
 	logger := log.FromContext(ctx)
 
-	if config == nil || len(config.Charts) == 0 {
-		return &PhaseStatus{
-			State:   lifecyclev1alpha1.UpgradeSkipped,
-			Message: "No Helm charts to reconcile",
-		}, nil
-	}
-
 	// Store release context for labeling HelmChart resources
-	r.releaseName = config.ReleaseName
-	r.releaseVersion = config.ReleaseVersion
+	r.releaseName = releaseName
+	r.releaseVersion = releaseVersion
 
 	// Build repository URL map for quick lookup
 	r.repositoryURLs = make(map[string]string)

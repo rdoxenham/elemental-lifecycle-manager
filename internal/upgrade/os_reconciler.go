@@ -27,6 +27,7 @@ import (
 	"github.com/suse/elemental-lifecycle-manager/internal/plan"
 )
 
+// OSReconciler reconciles OS upgrades via SUC Plans and verifies node state.
 type OSReconciler struct {
 	planHandler
 }
@@ -37,24 +38,29 @@ func NewOSReconciler(c client.Client) *OSReconciler {
 	}
 }
 
-func (r *OSReconciler) ReconcilePlans(ctx context.Context, releaseName string, config *SUCPlanConfig) (*PhaseStatus, error) {
-	logger := log.FromContext(ctx)
+func (r *OSReconciler) Phase() Phase {
+	return PhaseOS
+}
 
-	if config == nil {
-		return nil, fmt.Errorf("OS plan config is nil")
-	}
+func (r *OSReconciler) ShouldReconcile(config *Config) bool {
+	return config.OS != nil
+}
+
+func (r *OSReconciler) Reconcile(ctx context.Context, config *Config) (*PhaseStatus, error) {
+	logger := log.FromContext(ctx)
+	osConfig := config.OS
 
 	logger.Info("Reconciling OS upgrade",
-		"image", config.Image,
-		"version", config.Version,
-		"release", releaseName)
+		"image", osConfig.Image,
+		"version", osConfig.Version,
+		"release", config.ReleaseName)
 
 	allNodes, err := r.listNodes(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("listing nodes: %w", err)
 	}
 
-	controlPlanePlan, err := r.getOrCreatePlan(ctx, plan.OSControlPlane(releaseName, config.Image, config.Version))
+	controlPlanePlan, err := r.getOrCreatePlan(ctx, plan.OSControlPlane(config.ReleaseName, osConfig.Image, osConfig.Version))
 	if err != nil {
 		return nil, fmt.Errorf("reconciling control plane plan: %w", err)
 	}
@@ -68,7 +74,7 @@ func (r *OSReconciler) ReconcilePlans(ctx context.Context, releaseName string, c
 		return nil, fmt.Errorf("filtering control plane nodes: %w", err)
 	}
 
-	if !allNodesUpgraded(cpNodes, config.OSPrettyName) {
+	if !allNodesUpgraded(cpNodes, osConfig.OSPrettyName) {
 		return &PhaseStatus{
 			State:   lifecyclev1alpha1.UpgradeInProgress,
 			Message: "Control plane nodes are being upgraded",
@@ -85,7 +91,7 @@ func (r *OSReconciler) ReconcilePlans(ctx context.Context, releaseName string, c
 		}, nil
 	}
 
-	workerPlan, err := r.getOrCreatePlan(ctx, plan.OSWorker(releaseName, config.Image, config.Version))
+	workerPlan, err := r.getOrCreatePlan(ctx, plan.OSWorker(config.ReleaseName, osConfig.Image, osConfig.Version))
 	if err != nil {
 		return nil, fmt.Errorf("reconciling worker plan: %w", err)
 	}
@@ -99,7 +105,7 @@ func (r *OSReconciler) ReconcilePlans(ctx context.Context, releaseName string, c
 		return nil, fmt.Errorf("filtering worker nodes: %w", err)
 	}
 
-	if !allNodesUpgraded(workerNodes, config.OSPrettyName) {
+	if !allNodesUpgraded(workerNodes, osConfig.OSPrettyName) {
 		return &PhaseStatus{
 			State:   lifecyclev1alpha1.UpgradeInProgress,
 			Message: "Worker nodes are being upgraded",
