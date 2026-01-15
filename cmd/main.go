@@ -143,7 +143,7 @@ func main() {
 		RetrieveManifest: release.RetrieveManifest,
 		Pipeline: upgrade.NewPipeline(
 			upgrade.NewOSReconciler(k8sClient),
-			upgrade.NewKubernetesReconciler(k8sClient),
+			upgrade.NewKubernetesReconciler(k8sClient, helmClient),
 			upgrade.NewHelmReconciler(k8sClient, helmClient),
 		),
 	}).SetupWithManager(mgr); err != nil {

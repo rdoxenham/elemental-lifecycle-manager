@@ -31,21 +31,56 @@ type Config struct {
 	// Version is the target release version.
 	Version string
 	// OS contains the SUC Plan configuration for OS upgrades.
-	OS *SUCPlanConfig
+	OS *OSConfig
 	// Kubernetes contains the SUC Plan configuration for Kubernetes upgrades.
-	Kubernetes *SUCPlanConfig
+	Kubernetes *KubernetesConfig
 	// HelmCharts contains the Helm charts to deploy via Helm Controller.
 	HelmCharts *HelmChartConfig
 }
 
-// SUCPlanConfig contains configuration for creating a Rancher System Upgrade Controller Plan.
-type SUCPlanConfig struct {
+// OSConfig contains configuration for upgrading the operating system.
+type OSConfig struct {
 	// Image is the target image for the upgrade.
 	Image string
 	// Version is the target version.
 	Version string
 	// TODO: Populate this from the manifest.
-	OSPrettyName string
+	PrettyName string
+}
+
+// KubernetesConfig contains configuration for upgrading the Kubernetes version.
+type KubernetesConfig struct {
+	// Image is the target image for the upgrade.
+	Image string
+	// Version is the target version.
+	Version string
+	// CoreComponents lists additional components that must be verified after node upgrades.
+	// Used to verify RKE2 components (CoreDNS, ingress, etc.) are ready.
+	CoreComponents []CoreComponent
+}
+
+// CoreComponentType identifies the type of Kubernetes core component.
+type CoreComponentType string
+
+const (
+	// CoreComponentHelmChart indicates the component is managed by a HelmChart resource.
+	CoreComponentHelmChart CoreComponentType = "HelmChart"
+	// CoreComponentDeployment indicates the component is a Deployment.
+	CoreComponentDeployment CoreComponentType = "Deployment"
+)
+
+// CoreComponent represents a Kubernetes core component that must be verified during upgrades.
+// These are components bundled with the Kubernetes distribution (e.g., RKE2) that may still
+// be upgrading even after nodes report the correct kubelet version.
+type CoreComponent struct {
+	// Name is the resource name of the component.
+	Name string
+	// Type is the kind of resource (HelmChart or Deployment).
+	Type CoreComponentType
+	// Version is the expected version after upgrade.
+	Version string
+	// Containers maps container names to expected images (used for Deployment type).
+	Containers map[string]string
 }
 
 // HelmChartConfig contains configuration for Helm Controller HelmChart resources.
@@ -72,7 +107,7 @@ func NewConfig(manifest *resolver.ResolvedManifest, releaseName string) (*Config
 	config := &Config{
 		ReleaseName: releaseName,
 		Version:     core.Metadata.Version,
-		OS: &SUCPlanConfig{
+		OS: &OSConfig{
 			Image:   core.Components.OperatingSystem.Image.Base,
 			Version: core.Metadata.Version,
 		},
@@ -83,9 +118,11 @@ func NewConfig(manifest *resolver.ResolvedManifest, releaseName string) (*Config
 		return nil, fmt.Errorf("kubernetes image is required but not found in release manifest")
 	}
 
-	config.Kubernetes = &SUCPlanConfig{
+	config.Kubernetes = &KubernetesConfig{
 		Image:   kubernetesImage,
 		Version: kubernetesVersion,
+		// TODO: Populate CoreComponents from the release manifest
+		CoreComponents: nil,
 	}
 
 	if manifest.ProductExtension == nil {

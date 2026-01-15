@@ -74,7 +74,7 @@ func (r *OSReconciler) Reconcile(ctx context.Context, config *Config) (*PhaseSta
 		return nil, fmt.Errorf("filtering control plane nodes: %w", err)
 	}
 
-	if !allNodesUpgraded(cpNodes, osConfig.OSPrettyName) {
+	if !allNodesUpgraded(cpNodes, osConfig.PrettyName) {
 		return &PhaseStatus{
 			State:   lifecyclev1alpha1.UpgradeInProgress,
 			Message: "Control plane nodes are being upgraded",
@@ -105,7 +105,7 @@ func (r *OSReconciler) Reconcile(ctx context.Context, config *Config) (*PhaseSta
 		return nil, fmt.Errorf("filtering worker nodes: %w", err)
 	}
 
-	if !allNodesUpgraded(workerNodes, osConfig.OSPrettyName) {
+	if !allNodesUpgraded(workerNodes, osConfig.PrettyName) {
 		return &PhaseStatus{
 			State:   lifecyclev1alpha1.UpgradeInProgress,
 			Message: "Worker nodes are being upgraded",
