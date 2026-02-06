@@ -245,7 +245,7 @@ func (r *HelmReconciler) createHelmChartFromRelease(ctx context.Context, chart *
 	}
 
 	// Merge values from installed release with manifest values
-	if release.Config != nil && len(release.Config) > 0 {
+	if len(release.Config) > 0 {
 		mergedValues := mergeMaps(release.Config, chart.Values)
 		valuesYAML, err := yaml.Marshal(mergedValues)
 		if err != nil {
