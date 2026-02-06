@@ -36,6 +36,7 @@ import (
 
 	upgradecattlev1 "github.com/rancher/system-upgrade-controller/pkg/apis/upgrade.cattle.io/v1"
 
+	helmv1 "github.com/k3s-io/helm-controller/pkg/apis/helm.cattle.io/v1"
 	lifecyclev1alpha1 "github.com/suse/elemental-lifecycle-manager/api/v1alpha1"
 	"github.com/suse/elemental-lifecycle-manager/internal/controller"
 	"github.com/suse/elemental-lifecycle-manager/internal/helm"
@@ -54,6 +55,7 @@ func init() {
 
 	utilruntime.Must(lifecyclev1alpha1.AddToScheme(scheme))
 	utilruntime.Must(upgradecattlev1.AddToScheme(scheme))
+	utilruntime.Must(helmv1.AddToScheme(scheme))
 	// +kubebuilder:scaffold:scheme
 }
 
