@@ -22,34 +22,22 @@ import (
 
 	apimeta "k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/util/version"
 	ctrl "sigs.k8s.io/controller-runtime"
-	"sigs.k8s.io/controller-runtime/pkg/webhook"
 	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
 )
 
 func SetupWebhookWithManager(mgr ctrl.Manager) error {
-	return ctrl.NewWebhookManagedBy(mgr).
+	return ctrl.NewWebhookManagedBy(mgr, &Release{}).
 		WithValidator(&ReleaseValidator{}).
-		For(&Release{}).
 		Complete()
 }
 
-// NOTE: The 'path' attribute must follow a specific pattern and should not be modified directly here.
-// Modifying the path for an invalid path can cause API server errors; failing to locate the webhook.
-// +kubebuilder:webhook:path=/validate-lifecycle-suse-com-v1alpha1-release,mutating=false,failurePolicy=fail,sideEffects=None,groups=lifecycle.suse.com,resources=releases,verbs=create;update;delete,versions=v1alpha1,name=vrelease.kb.io,admissionReviewVersions=v1
-
-var _ webhook.CustomValidator = &ReleaseValidator{}
-
 type ReleaseValidator struct{}
 
-func (r *ReleaseValidator) ValidateCreate(_ context.Context, obj runtime.Object) (admission.Warnings, error) {
-	release, ok := obj.(*Release)
-	if !ok {
-		return nil, fmt.Errorf("unexpected object type: %T", obj)
-	}
+var _ admission.Validator[*Release] = &ReleaseValidator{}
 
+func (r *ReleaseValidator) ValidateCreate(_ context.Context, release *Release) (admission.Warnings, error) {
 	if release.Spec.Registry == "" {
 		return nil, fmt.Errorf("release registry is required")
 	}
@@ -58,17 +46,7 @@ func (r *ReleaseValidator) ValidateCreate(_ context.Context, obj runtime.Object)
 	return nil, err
 }
 
-func (r *ReleaseValidator) ValidateUpdate(_ context.Context, old, new runtime.Object) (admission.Warnings, error) {
-	oldRelease, ok := old.(*Release)
-	if !ok {
-		return nil, fmt.Errorf("unexpected object type: %T", old)
-	}
-
-	newRelease, ok := new.(*Release)
-	if !ok {
-		return nil, fmt.Errorf("unexpected object type: %T", new)
-	}
-
+func (r *ReleaseValidator) ValidateUpdate(_ context.Context, oldRelease, newRelease *Release) (admission.Warnings, error) {
 	newReleaseVersion, err := validateReleaseVersion(newRelease.Spec.Version)
 	if err != nil {
 		return nil, err
@@ -99,6 +77,10 @@ func (r *ReleaseValidator) ValidateUpdate(_ context.Context, old, new runtime.Ob
 	return nil, nil
 }
 
+func (r *ReleaseValidator) ValidateDelete(_ context.Context, _ *Release) (admission.Warnings, error) {
+	return nil, fmt.Errorf("deleting release objects is not allowed")
+}
+
 // validateNoUpgradeInProgress checks if an upgrade is currently in progress.
 // Returns an error if the Applied condition is not True (upgrade in progress or failed).
 func validateNoUpgradeInProgress(release *Release) error {
@@ -124,14 +106,10 @@ func validateReleaseVersion(releaseVersion string) (*version.Version, error) {
 		return nil, fmt.Errorf("release version is required")
 	}
 
-	v, err := version.ParseSemantic(releaseVersion)
+	v, err := version.Parse(releaseVersion)
 	if err != nil {
 		return nil, fmt.Errorf("'%s' is not a semantic version", releaseVersion)
 	}
 
 	return v, nil
-}
-
-func (r *ReleaseValidator) ValidateDelete(context.Context, runtime.Object) (admission.Warnings, error) {
-	return nil, fmt.Errorf("deleting release objects is not allowed")
 }
