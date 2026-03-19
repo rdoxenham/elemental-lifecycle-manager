@@ -35,6 +35,7 @@ import (
 	"github.com/suse/elemental-lifecycle-manager/internal/plan"
 	"github.com/suse/elemental-lifecycle-manager/internal/upgrade"
 	"github.com/suse/elemental/v3/pkg/manifest/resolver"
+	corev1 "k8s.io/api/core/v1"
 )
 
 const requeueInterval = 30 * time.Second
@@ -95,9 +96,9 @@ func (r *ReleaseReconciler) reconcileNormal(ctx context.Context, release *lifecy
 	setCondition(release, lifecyclev1alpha1.ConditionManifestResolved, metav1.ConditionTrue,
 		lifecyclev1alpha1.UpgradeSucceeded, "Release manifest retrieved successfully")
 
-	config, err := upgrade.NewConfig(manifest, release.Name)
+	config, err := r.parseUpgradeConfig(ctx, manifest, release.Name)
 	if err != nil {
-		return ctrl.Result{}, fmt.Errorf("building upgrade config: %w", err)
+		return ctrl.Result{}, fmt.Errorf("parsing upgrade config: %w", err)
 	}
 
 	logger.Info("Reconciling upgrade", "version", config.Version)
@@ -153,15 +154,6 @@ func (r *ReleaseReconciler) cleanupOldVersionPlans(ctx context.Context, releaseN
 	return nil
 }
 
-// SetupWithManager sets up the controller with the Manager.
-func (r *ReleaseReconciler) SetupWithManager(mgr ctrl.Manager) error {
-	return ctrl.NewControllerManagedBy(mgr).
-		For(&lifecyclev1alpha1.Release{}).
-		Watches(&upgradecattlev1.Plan{}, handler.EnqueueRequestsFromMapFunc(r.mapPlanToRelease)).
-		Watches(&helmv1.HelmChart{}, handler.EnqueueRequestsFromMapFunc(r.mapHelmChartToRelease)).
-		Complete(r)
-}
-
 // mapPlanToRelease maps SUC Plan events to Release reconcile requests.
 // Uses the release name label on the Plan to find the corresponding Release.
 func (r *ReleaseReconciler) mapPlanToRelease(ctx context.Context, obj client.Object) []ctrl.Request {
@@ -213,4 +205,56 @@ func (r *ReleaseReconciler) mapHelmChartToRelease(ctx context.Context, obj clien
 	}
 
 	return nil
+}
+
+func (r *ReleaseReconciler) parseDrainOpts(ctx context.Context) (opts *upgrade.DrainOpts, err error) {
+	nodeList := &corev1.NodeList{}
+	if err := r.List(ctx, nodeList); err != nil {
+		return nil, fmt.Errorf("listing nodes: %w", err)
+	}
+
+	var controlPlaneCounter, workerCounter int
+	for _, node := range nodeList.Items {
+		if node.Labels[plan.ControlPlaneLabel] != "true" {
+			workerCounter++
+		} else {
+			controlPlaneCounter++
+		}
+	}
+
+	opts = &upgrade.DrainOpts{}
+	switch {
+	case controlPlaneCounter > 1 && workerCounter <= 1:
+		opts.ControlPlane = true
+		opts.Worker = false
+	case controlPlaneCounter == 1 && workerCounter > 1:
+		opts.ControlPlane = false
+		opts.Worker = true
+	case controlPlaneCounter <= 1 && workerCounter <= 1:
+		opts.ControlPlane = false
+		opts.Worker = false
+	default:
+		opts.ControlPlane = true
+		opts.Worker = true
+	}
+
+	return opts, nil
+}
+
+func (r *ReleaseReconciler) parseUpgradeConfig(ctx context.Context, manifest *resolver.ResolvedManifest, releaseName string) (config *upgrade.Config, err error) {
+	opts, err := r.parseDrainOpts(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("parsing drain options: %w", err)
+	}
+
+	return upgrade.NewConfig(manifest, releaseName, opts)
+}
+
+// SetupWithManager sets up the controller with the Manager.
+func (r *ReleaseReconciler) SetupWithManager(mgr ctrl.Manager) error {
+	return ctrl.NewControllerManagedBy(mgr).
+		For(&lifecyclev1alpha1.Release{}).
+		Watches(&upgradecattlev1.Plan{}, handler.EnqueueRequestsFromMapFunc(r.mapPlanToRelease)).
+		Watches(&helmv1.HelmChart{}, handler.EnqueueRequestsFromMapFunc(r.mapHelmChartToRelease)).
+		Complete(r)
 }

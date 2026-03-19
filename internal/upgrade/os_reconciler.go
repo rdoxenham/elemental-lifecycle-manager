@@ -60,7 +60,8 @@ func (r *OSReconciler) Reconcile(ctx context.Context, config *Config) (*PhaseSta
 		return nil, fmt.Errorf("listing nodes: %w", err)
 	}
 
-	controlPlanePlan, err := r.getOrCreatePlan(ctx, plan.OSControlPlane(config.ReleaseName, osConfig.Image, osConfig.Version))
+	p := plan.OSControlPlane(config.ReleaseName, osConfig.Image, osConfig.Version, osConfig.DrainOpts.ControlPlane)
+	controlPlanePlan, err := r.getOrCreatePlan(ctx, p)
 	if err != nil {
 		return nil, fmt.Errorf("reconciling control plane plan: %w", err)
 	}
@@ -91,7 +92,8 @@ func (r *OSReconciler) Reconcile(ctx context.Context, config *Config) (*PhaseSta
 		}, nil
 	}
 
-	workerPlan, err := r.getOrCreatePlan(ctx, plan.OSWorker(config.ReleaseName, osConfig.Image, osConfig.Version))
+	p = plan.OSWorker(config.ReleaseName, osConfig.Image, osConfig.Version, osConfig.DrainOpts.Worker)
+	workerPlan, err := r.getOrCreatePlan(ctx, p)
 	if err != nil {
 		return nil, fmt.Errorf("reconciling worker plan: %w", err)
 	}

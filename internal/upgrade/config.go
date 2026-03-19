@@ -46,6 +46,8 @@ type OSConfig struct {
 	Version string
 	// TODO: Populate this from the manifest.
 	PrettyName string
+	// DrainOpts specifies which nodes should be drained before operating system upgrades.
+	DrainOpts *DrainOpts
 }
 
 // KubernetesConfig contains configuration for upgrading the Kubernetes version.
@@ -57,6 +59,16 @@ type KubernetesConfig struct {
 	// CoreComponents lists additional components that must be verified after node upgrades.
 	// Used to verify RKE2 components (CoreDNS, ingress, etc.) are ready.
 	CoreComponents []CoreComponent
+	// DrainOpts specifies which nodes should be drained before Kubernetes upgrades.
+	DrainOpts *DrainOpts
+}
+
+// DrainOpts contains options for draining specific node types
+type DrainOpts struct {
+	// ControlPlane specifies that control plane nodes need to be drained
+	ControlPlane bool
+	// Worker specifies that worker nodes need to be drained
+	Worker bool
 }
 
 // CoreComponentType identifies the type of Kubernetes core component.
@@ -94,7 +106,7 @@ type HelmChartConfig struct {
 // NewConfig creates a release upgrade specification from the resolved manifest.
 // The upgrade is built by extracting configuration from the core platform
 // and optionally merging with product extension components.
-func NewConfig(manifest *resolver.ResolvedManifest, releaseName string) (*Config, error) {
+func NewConfig(manifest *resolver.ResolvedManifest, releaseName string, drainOpts *DrainOpts) (*Config, error) {
 	if manifest == nil {
 		return nil, fmt.Errorf("manifest is nil")
 	}
@@ -108,8 +120,9 @@ func NewConfig(manifest *resolver.ResolvedManifest, releaseName string) (*Config
 		ReleaseName: releaseName,
 		Version:     core.Metadata.Version,
 		OS: &OSConfig{
-			Image:   core.Components.OperatingSystem.Image.Base,
-			Version: core.Metadata.Version,
+			Image:     core.Components.OperatingSystem.Image.Base,
+			Version:   core.Metadata.Version,
+			DrainOpts: drainOpts,
 		},
 	}
 
@@ -123,6 +136,7 @@ func NewConfig(manifest *resolver.ResolvedManifest, releaseName string) (*Config
 		Version: kubernetesVersion,
 		// TODO: Populate CoreComponents from the release manifest
 		CoreComponents: nil,
+		DrainOpts:      drainOpts,
 	}
 
 	if manifest.ProductExtension == nil {

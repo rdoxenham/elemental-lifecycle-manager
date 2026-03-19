@@ -31,6 +31,7 @@ var _ = Describe("Kubernetes plan tests", func() {
 		releaseName = "test-release"
 		k8sImage    = "registry.example.com/rke2:1.35.0"
 		version     = "0.6.0"
+		drain       = true
 	)
 
 	Describe("kubernetesControlPlaneName", func() {
@@ -61,7 +62,7 @@ var _ = Describe("Kubernetes plan tests", func() {
 		var plan *upgradecattlev1.Plan
 
 		BeforeAll(func() {
-			plan = KubernetesControlPlane(releaseName, k8sImage, version)
+			plan = KubernetesControlPlane(releaseName, k8sImage, version, drain)
 		})
 
 		It("creates a plan with correct metadata", func() {
@@ -113,7 +114,7 @@ var _ = Describe("Kubernetes plan tests", func() {
 		var plan *upgradecattlev1.Plan
 
 		BeforeAll(func() {
-			plan = KubernetesWorker(releaseName, k8sImage, version)
+			plan = KubernetesWorker(releaseName, k8sImage, version, drain)
 		})
 
 		It("creates a plan with correct metadata", func() {

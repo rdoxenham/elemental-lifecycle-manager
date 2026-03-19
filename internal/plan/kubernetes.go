@@ -40,10 +40,10 @@ func kubernetesWorkerName(version string) string {
 }
 
 // KubernetesControlPlane builds a SUC Plan for Kubernetes upgrades on control plane nodes.
-func KubernetesControlPlane(releaseName, k8sImage, releaseVersion string) *upgradecattlev1.Plan {
+func KubernetesControlPlane(releaseName, k8sImage, releaseVersion string, drain bool) *upgradecattlev1.Plan {
 	k8sVersion := parseVersion(k8sImage)
 
-	p := basePlan(kubernetesControlPlaneName(k8sVersion), true)
+	p := basePlan(kubernetesControlPlaneName(k8sVersion), drain)
 	p.Labels = map[string]string{
 		lifecyclev1alpha1.ReleaseNameLabel:    releaseName,
 		lifecyclev1alpha1.ReleaseVersionLabel: lifecyclev1alpha1.SanitizeVersion(releaseVersion),
@@ -69,10 +69,10 @@ func KubernetesControlPlane(releaseName, k8sImage, releaseVersion string) *upgra
 }
 
 // KubernetesWorker builds a SUC Plan for Kubernetes upgrades on worker nodes.
-func KubernetesWorker(releaseName, k8sImage, releaseVersion string) *upgradecattlev1.Plan {
+func KubernetesWorker(releaseName, k8sImage, releaseVersion string, drain bool) *upgradecattlev1.Plan {
 	k8sVersion := parseVersion(k8sImage)
 
-	p := basePlan(kubernetesWorkerName(k8sVersion), true)
+	p := basePlan(kubernetesWorkerName(k8sVersion), drain)
 	p.Labels = map[string]string{
 		lifecyclev1alpha1.ReleaseNameLabel:    releaseName,
 		lifecyclev1alpha1.ReleaseVersionLabel: lifecyclev1alpha1.SanitizeVersion(releaseVersion),

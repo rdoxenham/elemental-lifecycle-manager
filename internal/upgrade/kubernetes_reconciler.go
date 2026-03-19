@@ -71,7 +71,8 @@ func (r *KubernetesReconciler) Reconcile(ctx context.Context, config *Config) (*
 		return nil, fmt.Errorf("listing nodes: %w", err)
 	}
 
-	controlPlanePlan, err := r.getOrCreatePlan(ctx, plan.KubernetesControlPlane(config.ReleaseName, k8sConfig.Image, k8sConfig.Version))
+	p := plan.KubernetesControlPlane(config.ReleaseName, k8sConfig.Image, k8sConfig.Version, k8sConfig.DrainOpts.ControlPlane)
+	controlPlanePlan, err := r.getOrCreatePlan(ctx, p)
 	if err != nil {
 		return nil, fmt.Errorf("reconciling control plane plan: %w", err)
 	}
@@ -109,7 +110,8 @@ func (r *KubernetesReconciler) Reconcile(ctx context.Context, config *Config) (*
 		}, nil
 	}
 
-	workerPlan, err := r.getOrCreatePlan(ctx, plan.KubernetesWorker(config.ReleaseName, k8sConfig.Image, k8sConfig.Version))
+	p = plan.KubernetesControlPlane(config.ReleaseName, k8sConfig.Image, k8sConfig.Version, k8sConfig.DrainOpts.Worker)
+	workerPlan, err := r.getOrCreatePlan(ctx, p)
 	if err != nil {
 		return nil, fmt.Errorf("reconciling worker plan: %w", err)
 	}

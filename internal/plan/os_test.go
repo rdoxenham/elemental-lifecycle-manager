@@ -31,6 +31,7 @@ var _ = Describe("OS plan tests", func() {
 		releaseName = "test-release"
 		osImage     = "registry.example.com/elemental-os:1.2.3"
 		version     = "0.6.0"
+		drain       = true
 	)
 
 	Describe("osControlPlaneName", func() {
@@ -61,7 +62,7 @@ var _ = Describe("OS plan tests", func() {
 		var plan *upgradecattlev1.Plan
 
 		BeforeAll(func() {
-			plan = OSControlPlane(releaseName, osImage, version)
+			plan = OSControlPlane(releaseName, osImage, version, drain)
 		})
 
 		It("creates a plan with correct metadata", func() {
@@ -115,7 +116,7 @@ var _ = Describe("OS plan tests", func() {
 		var plan *upgradecattlev1.Plan
 
 		BeforeAll(func() {
-			plan = OSWorker(releaseName, osImage, version)
+			plan = OSWorker(releaseName, osImage, version, drain)
 		})
 
 		It("creates a plan with correct metadata", func() {
