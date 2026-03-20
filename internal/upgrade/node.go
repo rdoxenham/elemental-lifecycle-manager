@@ -68,13 +68,28 @@ func isControlPlaneOnlyCluster(nodes []corev1.Node) bool {
 	return true
 }
 
-// allNodesUpgraded returns true if all nodes are upgraded to the target OS version.
-// Returns false if no nodes are provided.
-// A node is considered upgraded when:
-// - It is in Ready condition
-// - It is not marked as unschedulable
-// - Its OS image matches the target (if osPrettyName is specified)
-func allNodesUpgraded(nodes []corev1.Node, osPrettyName string) bool {
+// allNodesRebooted returns true if all specified nodes have a different boot ID
+// than the last recorded one.
+func allNodesRebooted(nodes []corev1.Node, lastRecorded map[string]string) bool {
+	if len(nodes) != len(lastRecorded) {
+		return false
+	}
+
+	for _, n := range nodes {
+		lastBootID, exists := lastRecorded[n.Name]
+
+		if !exists || n.Status.NodeInfo.BootID == lastBootID {
+			return false
+		}
+
+	}
+
+	return true
+}
+
+// allNodesReady returns true if all the specified nodes are
+// schedulable and in a 'Ready' status.
+func allNodesReady(nodes []corev1.Node) bool {
 	if len(nodes) == 0 {
 		return false
 	}
@@ -85,12 +100,6 @@ func allNodesUpgraded(nodes []corev1.Node, osPrettyName string) bool {
 		}
 
 		if node.Spec.Unschedulable {
-			return false
-		}
-
-		// Only check OS image if osPrettyName is specified
-		// TODO: Remove this check once osPrettyName is properly populated
-		if osPrettyName != "" && node.Status.NodeInfo.OSImage != osPrettyName {
 			return false
 		}
 	}
