@@ -23,6 +23,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 
+	upgradecattlev1 "github.com/rancher/system-upgrade-controller/pkg/apis/upgrade.cattle.io/v1"
 	lifecyclev1alpha1 "github.com/suse/elemental-lifecycle-manager/api/v1alpha1"
 	"github.com/suse/elemental-lifecycle-manager/internal/plan"
 )
@@ -49,75 +50,78 @@ func (r *OSReconciler) ShouldReconcile(config *Config) bool {
 func (r *OSReconciler) Reconcile(ctx context.Context, config *Config) (*PhaseStatus, error) {
 	logger := log.FromContext(ctx)
 	osConfig := config.OS
-
 	logger.Info("Reconciling OS upgrade",
 		"image", osConfig.Image,
 		"version", osConfig.Version,
 		"release", config.ReleaseName)
 
-	allNodes, err := r.listNodes(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("listing nodes: %w", err)
+	controlPlaneTemplate := plan.OSControlPlane(config.ReleaseName, osConfig.Image, osConfig.Version, osConfig.DrainOpts.ControlPlane)
+	workerTemplate := plan.OSWorker(config.ReleaseName, osConfig.Image, osConfig.Version, osConfig.DrainOpts.Worker)
+
+	status, err := r.reconcileOSPlan(ctx, controlPlaneTemplate)
+	if err != nil || status.State != lifecyclev1alpha1.PlanComplete {
+		return status, err
 	}
 
-	p := plan.OSControlPlane(config.ReleaseName, osConfig.Image, osConfig.Version, osConfig.DrainOpts.ControlPlane)
-	controlPlanePlan, err := r.getOrCreatePlan(ctx, p)
-	if err != nil {
-		return nil, fmt.Errorf("reconciling control plane plan: %w", err)
+	status, err = r.reconcileOSPlan(ctx, workerTemplate)
+	if err != nil || status.State != lifecyclev1alpha1.PlanComplete {
+		return status, err
 	}
-
-	if status := checkPlanFailure(controlPlanePlan); status != nil {
-		return status, nil
-	}
-
-	cpNodes, err := filterNodesBySelector(allNodes, controlPlanePlan.Spec.NodeSelector)
-	if err != nil {
-		return nil, fmt.Errorf("filtering control plane nodes: %w", err)
-	}
-
-	if !allNodesUpgraded(cpNodes, osConfig.PrettyName) {
-		return &PhaseStatus{
-			State:   lifecyclev1alpha1.UpgradeInProgress,
-			Message: "Control plane nodes are being upgraded",
-		}, nil
-	}
-
-	logger.Info("Control plane nodes upgraded", "count", len(cpNodes))
-
-	if isControlPlaneOnlyCluster(allNodes) {
-		logger.Info("Control-plane-only cluster detected, skipping worker upgrade")
-		return &PhaseStatus{
-			State:   lifecyclev1alpha1.UpgradeSucceeded,
-			Message: "All cluster nodes are upgraded (control-plane-only cluster)",
-		}, nil
-	}
-
-	p = plan.OSWorker(config.ReleaseName, osConfig.Image, osConfig.Version, osConfig.DrainOpts.Worker)
-	workerPlan, err := r.getOrCreatePlan(ctx, p)
-	if err != nil {
-		return nil, fmt.Errorf("reconciling worker plan: %w", err)
-	}
-
-	if status := checkPlanFailure(workerPlan); status != nil {
-		return status, nil
-	}
-
-	workerNodes, err := filterNodesBySelector(allNodes, workerPlan.Spec.NodeSelector)
-	if err != nil {
-		return nil, fmt.Errorf("filtering worker nodes: %w", err)
-	}
-
-	if !allNodesUpgraded(workerNodes, osConfig.PrettyName) {
-		return &PhaseStatus{
-			State:   lifecyclev1alpha1.UpgradeInProgress,
-			Message: "Worker nodes are being upgraded",
-		}, nil
-	}
-
-	logger.Info("All nodes upgraded", "controlPlane", len(cpNodes), "workers", len(workerNodes))
 
 	return &PhaseStatus{
 		State:   lifecyclev1alpha1.UpgradeSucceeded,
-		Message: fmt.Sprintf("All %d nodes upgraded successfully", len(cpNodes)+len(workerNodes)),
+		Message: "All nodes upgraded successfully",
 	}, nil
+}
+
+func (r *OSReconciler) reconcileOSPlan(ctx context.Context, planTemplate *upgradecattlev1.Plan) (*PhaseStatus, error) {
+	logger := log.FromContext(ctx)
+	logger.Info("Reconciling OS upgrade plan",
+		"plan", planTemplate.Name,
+		"namespace", planTemplate.Namespace,
+	)
+
+	nodes, err := r.listNodesForPlan(ctx, planTemplate)
+	if err != nil {
+		return nil, fmt.Errorf("listing nodes for plan %s: %w", planTemplate.Name, err)
+	}
+
+	bootIDs := make(map[string]string, len(nodes.Items))
+	for _, n := range nodes.Items {
+		bootIDs[n.Name] = n.Status.NodeInfo.BootID
+	}
+
+	status, err := r.reconcilePlan(ctx, planTemplate)
+	if err != nil {
+		return nil, fmt.Errorf("reconciling plan %s: %w", planTemplate.Name, err)
+	}
+
+	if status.State != lifecyclev1alpha1.PlanComplete {
+		return status, nil
+	}
+
+	upgradedNodes, err := r.listNodesForPlan(ctx, planTemplate)
+	if err != nil {
+		return nil, fmt.Errorf("listing upgraded nodes for plan %s: %w", planTemplate.Name, err)
+	}
+
+	// Safeguard for corner cases where the plan completes, but nodes are not yet ready.
+	if !allNodesReady(upgradedNodes.Items) || !allNodesRebooted(upgradedNodes.Items, bootIDs) {
+		return &PhaseStatus{
+			State:   lifecyclev1alpha1.UpgradeInProgress,
+			Message: fmt.Sprintf("Plan %s completed, waiting for node upgrade verification", planTemplate.Name),
+		}, nil
+	}
+
+	nodeNames := make([]string, 0, len(upgradedNodes.Items))
+	for _, n := range upgradedNodes.Items {
+		nodeNames = append(nodeNames, n.Name)
+	}
+
+	logger.Info("OS upgrade plan completed",
+		"plan", planTemplate.Name,
+		"namespace", planTemplate.Namespace,
+		"upgradedNodes", nodeNames,
+	)
+	return status, nil
 }
