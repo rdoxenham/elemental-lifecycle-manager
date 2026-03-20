@@ -22,6 +22,7 @@ import (
 
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/log"
@@ -58,42 +59,56 @@ func (r *planHandler) getOrCreatePlan(ctx context.Context, desired *upgradecattl
 	return existing, nil
 }
 
-func evaluatePlanStatus(p *upgradecattlev1.Plan) (string, string) {
+func (r *planHandler) listNodesForPlan(ctx context.Context, p *upgradecattlev1.Plan) (nodes *corev1.NodeList, err error) {
+	selector, err := metav1.LabelSelectorAsSelector(p.Spec.NodeSelector)
+	if err != nil {
+		return nil, fmt.Errorf("parsing node selector: %w", err)
+	}
+
+	nodes = &corev1.NodeList{}
+	if err := r.List(ctx, nodes, client.MatchingLabelsSelector{Selector: selector}); err != nil {
+		return nil, fmt.Errorf("listing nodes with selector %s: %w", selector, err)
+	}
+
+	return nodes, nil
+}
+
+func (r *planHandler) reconcilePlan(ctx context.Context, planTemplate *upgradecattlev1.Plan) (status *PhaseStatus, err error) {
+	activePlan, err := r.getOrCreatePlan(ctx, planTemplate)
+	if err != nil {
+		return nil, fmt.Errorf("attempting to retrieve or create %s: %w", planTemplate.Name, err)
+	}
+
+	return parsePhaseStatusFromPlan(activePlan), nil
+}
+
+func parsePhaseStatusFromPlan(p *upgradecattlev1.Plan) *PhaseStatus {
 	if len(p.Status.Applying) > 0 {
-		return lifecyclev1alpha1.UpgradeInProgress, "Nodes being upgraded"
+		return &PhaseStatus{
+			State:   lifecyclev1alpha1.UpgradeInProgress,
+			Message: fmt.Sprintf("Plan '%s' is cuurently applying on: %s", p.Name, p.Status.Applying),
+		}
 	}
 
 	for _, cond := range p.Status.Conditions {
 		if cond.Type == string(upgradecattlev1.PlanComplete) {
 			if cond.Status == corev1.ConditionTrue {
-				return lifecyclev1alpha1.UpgradeSucceeded, "Plan completed"
+				return &PhaseStatus{
+					State:   lifecyclev1alpha1.PlanComplete,
+					Message: fmt.Sprintf("Plan '%s' execution completed successfully", p.Name),
+				}
 			}
 			if cond.Status == corev1.ConditionFalse && cond.Reason != "" {
-				return lifecyclev1alpha1.UpgradeFailed, cond.Message
+				return &PhaseStatus{
+					State:   lifecyclev1alpha1.UpgradeFailed,
+					Message: fmt.Sprintf("Plan '%s' failed: %s", p.Name, cond.Message),
+				}
 			}
 		}
 	}
 
-	return lifecyclev1alpha1.UpgradeInProgress, "Waiting for upgrade to complete"
-}
-
-// listNodes returns all nodes in the cluster.
-func (r *planHandler) listNodes(ctx context.Context) ([]corev1.Node, error) {
-	nodeList := &corev1.NodeList{}
-	if err := r.List(ctx, nodeList); err != nil {
-		return nil, err
+	return &PhaseStatus{
+		State:   lifecyclev1alpha1.UpgradeInProgress,
+		Message: fmt.Sprintf("Plan '%s' execution in progress", p.Name),
 	}
-	return nodeList.Items, nil
-}
-
-// checkPlanFailure returns a failed PhaseStatus if the plan has failed, nil otherwise.
-func checkPlanFailure(p *upgradecattlev1.Plan) *PhaseStatus {
-	state, message := evaluatePlanStatus(p)
-	if state == lifecyclev1alpha1.UpgradeFailed {
-		return &PhaseStatus{
-			State:   lifecyclev1alpha1.UpgradeFailed,
-			Message: fmt.Sprintf("Plan %s failed: %s", p.Name, message),
-		}
-	}
-	return nil
 }
